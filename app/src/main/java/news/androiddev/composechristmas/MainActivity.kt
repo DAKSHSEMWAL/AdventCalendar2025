@@ -34,11 +34,65 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+enum class SkyTheme { NightSky, WinterMorning }
+
 @Composable
-fun ChristmasScene(modifier: Modifier = Modifier) {
+fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.NightSky) {
     Canvas(modifier = modifier.fillMaxSize()) {
         val canvasWidth = size.width
         val canvasHeight = size.height
+
+        // Background gradient sky
+        val skyBrush = when (skyTheme) {
+            SkyTheme.NightSky -> Brush.verticalGradient(
+                colors = listOf(
+                    Color(0xFF0B1026), // deep navy
+                    Color(0xFF152044),
+                    Color(0xFF1F2D5E)
+                ),
+                startY = 0f,
+                endY = canvasHeight
+            )
+            SkyTheme.WinterMorning -> Brush.verticalGradient(
+                colors = listOf(
+                    Color(0xFFE3F2FD), // pale blue
+                    Color(0xFFBBDEFB),
+                    Color(0xFF90CAF9)
+                ),
+                startY = 0f,
+                endY = canvasHeight
+            )
+        }
+        drawRect(brush = skyBrush, topLeft = Offset.Zero, size = size)
+
+        // Stars (visible for both, brightest on Night Sky)
+        val starColor = if (skyTheme == SkyTheme.NightSky) Color(0xFFFFF9C4) else Color(0xFFFFFDE7)
+        val starGlow = if (skyTheme == SkyTheme.NightSky) 1f else 0.8f
+        val starRadius = if (skyTheme == SkyTheme.NightSky) 5f else 4f
+        // Deterministic positions proportionally distributed near upper half
+        val starPositions = listOf(
+            Offset(canvasWidth * 0.18f, canvasHeight * 0.12f),
+            Offset(canvasWidth * 0.32f, canvasHeight * 0.08f),
+            Offset(canvasWidth * 0.68f, canvasHeight * 0.10f),
+            Offset(canvasWidth * 0.78f, canvasHeight * 0.16f),
+            Offset(canvasWidth * 0.54f, canvasHeight * 0.06f),
+            Offset(canvasWidth * 0.42f, canvasHeight * 0.18f),
+            Offset(canvasWidth * 0.86f, canvasHeight * 0.26f)
+        )
+        for (p in starPositions) {
+            // glow halo
+            drawCircle(
+                color = starColor.copy(alpha = 0.25f * starGlow),
+                radius = starRadius * 3.5f,
+                center = p
+            )
+            // core
+            drawCircle(
+                color = starColor,
+                radius = starRadius,
+                center = p
+            )
+        }
 
         // Tree overall geometry
         val numLayers = 10
@@ -102,42 +156,11 @@ fun ChristmasScene(modifier: Modifier = Modifier) {
             }
             drawPath(path = path, brush = foliageBrush)
 
-            // Uniform side ticks (short horizontal lines)
-            val tickLen = layerHeight * 0.18f
-            val tickThickness = 7f
-            val tickColor = tipGreen.copy(alpha = 0.9f)
-            val ticksPerSide = 5
-            for (t in 0 until ticksPerSide) {
-                val y = layerTop + (t + 1) * (layerHeight / (ticksPerSide + 1))
-                // Left side tick
-                drawLine(
-                    color = tickColor,
-                    start = Offset(layerLeft - tickLen, y),
-                    end = Offset(layerLeft - tickLen * 0.25f, y),
-                    strokeWidth = tickThickness,
-                    cap = StrokeCap.Round
-                )
-                // Right side tick
-                drawLine(
-                    color = tickColor,
-                    start = Offset(layerRight + tickLen * 0.25f, y),
-                    end = Offset(layerRight + tickLen, y),
-                    strokeWidth = tickThickness,
-                    cap = StrokeCap.Round
-                )
-            }
+            // Side tips removed per request
         }
 
-        // Slender top sprig
+        // Top sprig removed per request
         val midX = canvasWidth / 2f
-        val sprigHeight = layerHeight * 0.8f
-        drawLine(
-            color = tipGreen,
-            start = Offset(midX, treeTop - sprigHeight * 0.2f),
-            end = Offset(midX, treeTop - sprigHeight),
-            strokeWidth = 10f,
-            cap = StrokeCap.Round
-        )
 
         // Trunk
         val trunkWidth = treeWidth * 0.14f
@@ -156,6 +179,6 @@ fun ChristmasScene(modifier: Modifier = Modifier) {
 @Composable
 fun GreetingPreview() {
     ComposeChristmasTheme {
-        ChristmasScene()
+        ChristmasScene(skyTheme = SkyTheme.NightSky)
     }
 }
