@@ -42,11 +42,11 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
         val canvasWidth = size.width
         val canvasHeight = size.height
 
-        // Background gradient sky
+        // --- 1. Sky Background ---
         val skyBrush = when (skyTheme) {
             SkyTheme.NightSky -> Brush.verticalGradient(
                 colors = listOf(
-                    Color(0xFF0B1026), // deep navy
+                    Color(0xFF0B1026), // Deep Navy
                     Color(0xFF152044),
                     Color(0xFF1F2D5E)
                 ),
@@ -55,7 +55,7 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
             )
             SkyTheme.WinterMorning -> Brush.verticalGradient(
                 colors = listOf(
-                    Color(0xFFE3F2FD), // pale blue
+                    Color(0xFFE3F2FD), // Pale Blue
                     Color(0xFFBBDEFB),
                     Color(0xFF90CAF9)
                 ),
@@ -65,87 +65,150 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
         }
         drawRect(brush = skyBrush, topLeft = Offset.Zero, size = size)
 
-        // Stars (visible for both, brightest on Night Sky)
+        // --- 2. Stars ---
         val starColor = if (skyTheme == SkyTheme.NightSky) Color(0xFFFFF9C4) else Color(0xFFFFFDE7)
-        val starGlow = if (skyTheme == SkyTheme.NightSky) 1f else 0.8f
-        val starRadius = if (skyTheme == SkyTheme.NightSky) 5f else 4f
-        // Deterministic positions proportionally distributed near upper half
+        val starGlowAlpha = if (skyTheme == SkyTheme.NightSky) 0.25f else 0.20f
+        val starRadiusBase = if (skyTheme == SkyTheme.NightSky) 5f else 4f
+
         val starPositions = listOf(
-            Offset(canvasWidth * 0.18f, canvasHeight * 0.12f),
-            Offset(canvasWidth * 0.32f, canvasHeight * 0.08f),
+            Offset(canvasWidth * 0.10f, canvasHeight * 0.10f),
+            Offset(canvasWidth * 0.18f, canvasHeight * 0.22f),
+            Offset(canvasWidth * 0.22f, canvasHeight * 0.07f),
+            Offset(canvasWidth * 0.32f, canvasHeight * 0.18f),
+            Offset(canvasWidth * 0.38f, canvasHeight * 0.35f),
+            Offset(canvasWidth * 0.42f, canvasHeight * 0.28f),
+            Offset(canvasWidth * 0.48f, canvasHeight * 0.09f),
+            Offset(canvasWidth * 0.54f, canvasHeight * 0.16f),
+            Offset(canvasWidth * 0.60f, canvasHeight * 0.33f),
             Offset(canvasWidth * 0.68f, canvasHeight * 0.10f),
-            Offset(canvasWidth * 0.78f, canvasHeight * 0.16f),
-            Offset(canvasWidth * 0.54f, canvasHeight * 0.06f),
-            Offset(canvasWidth * 0.42f, canvasHeight * 0.18f),
-            Offset(canvasWidth * 0.86f, canvasHeight * 0.26f)
-        )
-        for (p in starPositions) {
-            // glow halo
+            Offset(canvasWidth * 0.72f, canvasHeight * 0.25f),
+            Offset(canvasWidth * 0.78f, canvasHeight * 0.36f),
+            Offset(canvasWidth * 0.82f, canvasHeight * 0.19f),
+            Offset(canvasWidth * 0.86f, canvasHeight * 0.46f),
+            Offset(canvasWidth * 0.92f, canvasHeight * 0.12f),
+            Offset(canvasWidth * 0.95f, canvasHeight * 0.41f)
+        ) +
+        // Spread deterministic pseudo-random stars throughout the sky (top to ~70% height)
+        List(30) { i ->
+            val x = (0.04f + 0.92f * ((i * 37) % 100) / 100f) * canvasWidth
+            val y = (0.04f + 0.66f * ((i * 53 + 17) % 100) / 100f) * canvasHeight
+            Offset(x, y)
+        }
+
+        for (pos in starPositions) {
+            // Glow Halo
             drawCircle(
-                color = starColor.copy(alpha = 0.25f * starGlow),
-                radius = starRadius * 3.5f,
-                center = p
+                color = starColor.copy(alpha = starGlowAlpha),
+                radius = starRadiusBase * 3.5f,
+                center = pos
             )
-            // core
+            // Core
             drawCircle(
                 color = starColor,
-                radius = starRadius,
-                center = p
+                radius = starRadiusBase,
+                center = pos
             )
         }
 
-        // Tree overall geometry
+        // --- 3. Snowy Hill (Ground) ---
+        // Matches SVG: M 0 H L 0 0.85H C 0.3W 0.80H, 0.7W 0.80H, W 0.85H L W H Z
+        val hillPath = Path().apply {
+            moveTo(0f, canvasHeight)
+            lineTo(0f, canvasHeight * 0.85f)
+            cubicTo(
+                canvasWidth * 0.3f, canvasHeight * 0.80f, // Control Point 1
+                canvasWidth * 0.7f, canvasHeight * 0.80f, // Control Point 2
+                canvasWidth, canvasHeight * 0.85f           // End Point
+            )
+            lineTo(canvasWidth, canvasHeight)
+            close()
+        }
+
+        // Snow Gradient: White to Icy Blue
+        val snowBrush = Brush.verticalGradient(
+            colors = listOf(Color(0xFFFFFFFF), Color(0xFFE0F7FA)),
+            startY = canvasHeight * 0.80f,
+            endY = canvasHeight
+        )
+
+        drawPath(path = hillPath, brush = snowBrush)
+
+        // --- 4. Tree Configuration ---
         val numLayers = 10
         val treeWidth = canvasWidth * 0.42f
         val treeHeight = canvasHeight * 0.62f
-        val treeTop = canvasHeight * 0.16f
+        // Move tree down to ~38% so it reaches the hill
+        val treeTop = canvasHeight * 0.38f
         val layerHeight = treeHeight / (numLayers + 1f)
         val layerOverlap = layerHeight * 0.35f
 
-        // Colors & shading (flatter gradient to match stylized mockup)
         val deepGreen = Color(0xFF2E7D32)
         val midGreen = Color(0xFF2F7E33)
-        val tipGreen = Color(0xFF6CCB6B)
         val foliageBrush = Brush.verticalGradient(
             colors = listOf(deepGreen, midGreen),
             startY = treeTop,
             endY = treeTop + treeHeight
         )
 
-        // Draw curved, overlapping foliage layers
-        for (layerIndex in 0 until numLayers) {
-            val progressFromTop = layerIndex / (numLayers - 1f)
-            val layerTop = treeTop + layerIndex * (layerHeight - layerOverlap)
+        // --- 5. Trunk Logic ---
+        // Calculate ground level at center (approximate bezier Y at t=0.5)
+        // Bezier P0y=0.85, P1y=0.80, P2y=0.80, P3y=0.85 -> Midpoint is ~0.8125
+        val groundYAtCenter = canvasHeight * 0.81f
+
+        val trunkWidth = treeWidth * 0.14f
+        val trunkLeft = (canvasWidth - trunkWidth) / 2f
+
+        // Calculate bottom of foliage
+        val lastLayerTop = treeTop + (numLayers - 1) * (layerHeight - layerOverlap)
+        val lastLayerBottom = lastLayerTop + layerHeight
+
+        // Connect trunk from inside foliage to slightly below ground
+        val trunkTop = lastLayerBottom - layerHeight * 0.5f
+        val trunkBottom = groundYAtCenter + 10f // Bury it slightly
+
+        drawRect(
+            color = Color(0xFF5D4037),
+            topLeft = Offset(trunkLeft, trunkTop),
+            size = Size(trunkWidth, trunkBottom - trunkTop)
+        )
+
+        // --- 6. Tree Foliage Layers ---
+        val centerX = canvasWidth / 2f
+
+        for (i in 0 until numLayers) {
+            val progressFromTop = i / (numLayers - 1f)
+            val layerTop = treeTop + i * (layerHeight - layerOverlap)
             val layerBottom = layerTop + layerHeight
 
-            // Width taper: wider at TOP and taper towards bottom (reverse)
-            val baseWidth = treeWidth * (0.25f + 0.75f * (progressFromTop))
-            val wobble = (if (layerIndex % 2 == 0) 1f else -1f) * baseWidth * 0.06f
-            val layerWidth = baseWidth + wobble
-            val layerLeft = (canvasWidth - layerWidth) / 2f
-            val layerRight = layerLeft + layerWidth
+            // Taper width: wider at bottom (actually code says wider at top/middle logic?)
+            // Logic: val baseWidth = treeWidth * (0.25f + 0.75f * (progressFromTop))
+            val baseWidth = treeWidth * (0.25f + 0.75f * progressFromTop)
 
-            val centerX = canvasWidth / 2f
+            // Wobble for organic feel
+            val wobble = (if (i % 2 == 0) 1f else -1f) * baseWidth * 0.06f
+            val layerWidth = baseWidth + wobble
+            val layerLeft = centerX - layerWidth / 2f
+            val layerRight = centerX + layerWidth / 2f
+
             val controlYOffset = layerHeight * 0.35f
 
-            // Symmetric scalloped cap per layer
             val path = Path().apply {
                 moveTo(centerX, layerTop)
-                // Right scallop
+                // Right Scallop
                 quadraticBezierTo(
                     centerX + layerWidth * 0.55f,
                     layerTop + controlYOffset * 0.9f,
                     layerRight,
                     layerBottom
                 )
-                // Bottom slight inward curve
+                // Bottom Curve (inward)
                 quadraticBezierTo(
                     centerX,
                     layerBottom - layerHeight * 0.15f,
                     layerLeft,
                     layerBottom
                 )
-                // Left scallop
+                // Left Scallop
                 quadraticBezierTo(
                     centerX - layerWidth * 0.55f,
                     layerTop + controlYOffset * 0.9f,
@@ -154,24 +217,9 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
                 )
                 close()
             }
+
             drawPath(path = path, brush = foliageBrush)
-
-            // Side tips removed per request
         }
-
-        // Top sprig removed per request
-        val midX = canvasWidth / 2f
-
-        // Trunk
-        val trunkWidth = treeWidth * 0.14f
-        val trunkHeight = treeHeight * 0.15f
-        val trunkLeft = midX - trunkWidth / 2f
-        val trunkTop = treeTop + (numLayers - 1) * (layerHeight - layerOverlap) + layerHeight
-        drawRect(
-            color = Color(0xFF5D4037),
-            topLeft = Offset(trunkLeft, trunkTop),
-            size = Size(trunkWidth, trunkHeight)
-        )
     }
 }
 
