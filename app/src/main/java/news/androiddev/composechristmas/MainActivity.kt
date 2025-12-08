@@ -14,8 +14,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.tooling.preview.Preview
 import news.androiddev.composechristmas.ui.theme.ComposeChristmasTheme
@@ -150,7 +148,62 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
             endY = treeTop + treeHeight
         )
 
-        // --- 5. Trunk Logic ---
+        // --- 5. Star Topper (draw behind trunk and foliage) ---
+        val centerX = canvasWidth / 2f
+        run {
+            val starCenter = Offset(centerX, treeTop - layerHeight * 0.25f)
+            val outerRadius = treeWidth * 0.10f
+            val innerRadius = outerRadius * 0.45f
+
+            // Build a 5-point star path
+            val starPath = Path().apply {
+                val points = mutableListOf<Offset>()
+                val tipAngle = -90f // top tip pointing straight up
+                for (k in 0 until 10) {
+                    val isOuter = k % 2 == 0
+                    val radius = if (isOuter) outerRadius else innerRadius
+                    val angleDeg = tipAngle + k * 36f
+                    val angleRad = Math.toRadians(angleDeg.toDouble())
+                    val x = starCenter.x + (radius * Math.cos(angleRad)).toFloat()
+                    val y = starCenter.y + (radius * Math.sin(angleRad)).toFloat()
+                    points.add(Offset(x, y))
+                }
+                moveTo(points[0].x, points[0].y)
+                for (p in 1 until points.size) {
+                    lineTo(points[p].x, points[p].y)
+                }
+                close()
+            }
+
+            // Shiny radial gradient with warm golden tones
+            val starGradient = Brush.radialGradient(
+                colors = listOf(
+                    Color(0xFFFFF59D), // light gold center
+                    Color(0xFFFFD54F),
+                    Color(0xFFFFC107), // strong gold
+                    Color(0x00FFC107)  // fade to transparent at edge
+                ),
+                center = starCenter,
+                radius = outerRadius * 1.25f
+            )
+
+            // Soft glow around the star
+            drawCircle(
+                color = Color(0xFFFFF8E1).copy(alpha = 0.35f),
+                radius = outerRadius * 2.6f,
+                center = starCenter
+            )
+            drawCircle(
+                color = Color(0xFFFFFDE7).copy(alpha = 0.22f),
+                radius = outerRadius * 1.6f,
+                center = starCenter
+            )
+
+            // Draw the star with the gradient
+            drawPath(path = starPath, brush = starGradient)
+        }
+
+        // --- 6. Trunk Logic ---
         // Calculate ground level at center (approximate bezier Y at t=0.5)
         // Bezier P0y=0.85, P1y=0.80, P2y=0.80, P3y=0.85 -> Midpoint is ~0.8125
         val groundYAtCenter = canvasHeight * 0.81f
@@ -172,16 +225,12 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
             size = Size(trunkWidth, trunkBottom - trunkTop)
         )
 
-        // --- 6. Tree Foliage Layers ---
-        val centerX = canvasWidth / 2f
-
+        // --- 7. Tree Foliage Layers ---
         for (i in 0 until numLayers) {
             val progressFromTop = i / (numLayers - 1f)
             val layerTop = treeTop + i * (layerHeight - layerOverlap)
             val layerBottom = layerTop + layerHeight
 
-            // Taper width: wider at bottom (actually code says wider at top/middle logic?)
-            // Logic: val baseWidth = treeWidth * (0.25f + 0.75f * (progressFromTop))
             val baseWidth = treeWidth * (0.25f + 0.75f * progressFromTop)
 
             // Wobble for organic feel
@@ -195,21 +244,21 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
             val path = Path().apply {
                 moveTo(centerX, layerTop)
                 // Right Scallop
-                quadraticBezierTo(
+                quadraticTo(
                     centerX + layerWidth * 0.55f,
                     layerTop + controlYOffset * 0.9f,
                     layerRight,
                     layerBottom
                 )
                 // Bottom Curve (inward)
-                quadraticBezierTo(
+                quadraticTo(
                     centerX,
                     layerBottom - layerHeight * 0.15f,
                     layerLeft,
                     layerBottom
                 )
                 // Left Scallop
-                quadraticBezierTo(
+                quadraticTo(
                     centerX - layerWidth * 0.55f,
                     layerTop + controlYOffset * 0.9f,
                     centerX,
