@@ -108,6 +108,88 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
             )
         }
 
+        // --- 2b. Moon (crescent with craters) ---
+        run {
+            // Place moon near top-right, size relative to canvas
+            val moonCenter = Offset(canvasWidth * 0.80f, canvasHeight * 0.18f)
+            val moonRadius = canvasWidth.coerceAtMost(canvasHeight) * 0.08f
+
+            // Colors vary slightly by theme
+            val moonBaseColor = if (skyTheme == SkyTheme.NightSky) Color(0xFFFFF3E0) else Color(0xFFFFFDE7)
+            val moonShadowColor = if (skyTheme == SkyTheme.NightSky) Color(0xFF0B1026) else Color(0xFF90CAF9)
+
+            // Soft glow behind moon
+            drawCircle(
+                color = moonBaseColor.copy(alpha = 0.18f),
+                radius = moonRadius * 2.2f,
+                center = moonCenter
+            )
+            drawCircle(
+                color = moonBaseColor.copy(alpha = 0.28f),
+                radius = moonRadius * 1.4f,
+                center = moonCenter
+            )
+
+            // Full moon base
+            drawCircle(
+                color = moonBaseColor,
+                radius = moonRadius,
+                center = moonCenter
+            )
+
+            // Create crescent by overlaying a masking circle with sky color
+            val phaseOffsetX = moonRadius * 0.55f // controls the crescent thickness
+            val maskCenter = Offset(moonCenter.x + phaseOffsetX, moonCenter.y)
+            drawCircle(
+                color = moonShadowColor,
+                radius = moonRadius * 0.98f,
+                center = maskCenter
+            )
+
+            // Subtle terminator rim
+            drawCircle(
+                color = Color.White.copy(alpha = 0.20f),
+                radius = moonRadius * 0.99f,
+                center = moonCenter
+            )
+
+            // Craters: draw small circles with darker tint and faint highlight
+            val craterDark = Color(0xFFE0C9A6) // slightly darker than base
+            val craterHighlight = Color(0xFFFFF8E1)
+
+            // Deterministic positions within the lit crescent area
+            val craterPositions = listOf(
+                Offset(moonCenter.x - moonRadius * 0.25f, moonCenter.y - moonRadius * 0.10f),
+                Offset(moonCenter.x - moonRadius * 0.12f, moonCenter.y + moonRadius * 0.15f),
+                Offset(moonCenter.x - moonRadius * 0.35f, moonCenter.y + moonRadius * 0.05f),
+                Offset(moonCenter.x - moonRadius * 0.18f, moonCenter.y - moonRadius * 0.28f),
+                Offset(moonCenter.x - moonRadius * 0.05f, moonCenter.y - moonRadius * 0.02f)
+            )
+            val craterRadii = listOf(
+                moonRadius * 0.11f,
+                moonRadius * 0.08f,
+                moonRadius * 0.06f,
+                moonRadius * 0.05f,
+                moonRadius * 0.04f
+            )
+
+            craterPositions.forEachIndexed { idx, c ->
+                val r = craterRadii[idx]
+                // Shadow ring
+                drawCircle(
+                    color = craterDark.copy(alpha = 0.65f),
+                    radius = r,
+                    center = c
+                )
+                // Inner highlight slightly offset toward top-left
+                drawCircle(
+                    color = craterHighlight.copy(alpha = 0.45f),
+                    radius = r * 0.55f,
+                    center = Offset(c.x - r * 0.20f, c.y - r * 0.20f)
+                )
+            }
+        }
+
         // --- 3. Snowy Hill (Ground) ---
         // Matches SVG: M 0 H L 0 0.85H C 0.3W 0.80H, 0.7W 0.80H, W 0.85H L W H Z
         val hillPath = Path().apply {
@@ -226,6 +308,7 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
         )
 
         // --- 7. Tree Foliage Layers ---
+        val layerBounds = mutableListOf<Pair<Float, Float>>()
         for (i in 0 until numLayers) {
             val progressFromTop = i / (numLayers - 1f)
             val layerTop = treeTop + i * (layerHeight - layerOverlap)
@@ -238,6 +321,8 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
             val layerWidth = baseWidth + wobble
             val layerLeft = centerX - layerWidth / 2f
             val layerRight = centerX + layerWidth / 2f
+
+            layerBounds.add(layerLeft to layerRight)
 
             val controlYOffset = layerHeight * 0.35f
 
@@ -268,6 +353,215 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
             }
 
             drawPath(path = path, brush = foliageBrush)
+        }
+
+        // --- 7b. Garland (tinsel wrapping with bezier path and PathMeasure) ---
+        run {
+            // Size unit for garland elements (similar to ornamentRadius but scoped here)
+            val garlandUnit = layerHeight * 0.14f
+
+            // Build a wavy garland that wraps around several layers of the tree
+            val garlandPath = Path()
+            val wraps = listOf(1, 3, 5, 7) // layers to anchor garland waves
+            var started = false
+            for ((idx, layerIndex) in wraps.withIndex()) {
+                val t = layerIndex / (numLayers - 1f)
+                val baseWidth = treeWidth * (0.25f + 0.75f * t)
+                val wobble = (if (layerIndex % 2 == 0) 1f else -1f) * baseWidth * 0.06f
+                val layerWidth = baseWidth + wobble
+                val y = treeTop + layerIndex * (layerHeight - layerOverlap) + layerHeight * 0.55f
+                val leftX = centerX - layerWidth * 0.48f
+                val rightX = centerX + layerWidth * 0.48f
+
+                val amplitude = layerHeight * 0.30f
+                val cp1 = Offset(centerX - layerWidth * 0.18f, y - amplitude * 0.8f)
+                val cp2 = Offset(centerX + layerWidth * 0.18f, y + amplitude * 0.8f)
+
+                if (!started) {
+                    garlandPath.moveTo(leftX, y)
+                    started = true
+                }
+                // Wave from left to right
+                garlandPath.cubicTo(
+                    cp1.x, cp1.y,
+                    cp2.x, cp2.y,
+                    rightX, y
+                )
+                // Small descent between wraps to simulate vertical progression
+                if (idx != wraps.lastIndex) {
+                    val nextT = wraps[idx + 1] / (numLayers - 1f)
+                    val nextBase = treeWidth * (0.25f + 0.75f * nextT)
+                    val nextWobble = (if (wraps[idx + 1] % 2 == 0) 1f else -1f) * nextBase * 0.06f
+                    val nextWidth = nextBase + nextWobble
+                    val nextY = treeTop + wraps[idx + 1] * (layerHeight - layerOverlap) + layerHeight * 0.45f
+                    val nextLeftX = centerX - nextWidth * 0.45f
+                    // Connect downwards with a gentle curve back to the left edge
+                    garlandPath.cubicTo(
+                        centerX + layerWidth * 0.10f, y + amplitude * 0.6f,
+                        centerX - nextWidth * 0.20f, nextY - amplitude * 0.6f,
+                        nextLeftX, nextY
+                    )
+                }
+            }
+
+            // Tinsel style: stroke-like dots and small sparkles along the path using PathMeasure
+            val measure = androidx.compose.ui.graphics.PathMeasure()
+            measure.setPath(garlandPath, false)
+            val length = measure.length
+
+            // Draw sampled dots
+            val step = garlandUnit * 0.80f
+            var dist = 0f
+            while (dist <= length) {
+                val pos = measure.getPosition(dist)
+                val sparkleColor = Color(0xFFE0F7FA)
+                // Base tinsel dot
+                drawCircle(color = sparkleColor.copy(alpha = 0.75f), radius = garlandUnit * 0.10f, center = pos)
+                // Tiny star-like cross
+                val crossLen = garlandUnit * 0.16f
+                drawLine(color = sparkleColor.copy(alpha = 0.65f), start = Offset(pos.x - crossLen, pos.y), end = Offset(pos.x + crossLen, pos.y))
+                drawLine(color = sparkleColor.copy(alpha = 0.65f), start = Offset(pos.x, pos.y - crossLen), end = Offset(pos.x, pos.y + crossLen))
+                dist += step
+            }
+
+            // A soft metallic ribbon underlay to suggest a continuous strand
+            val ribbonColor = Color(0xFFB0BEC5)
+            // Approximate stroke by drawing many short segments along the path
+            val segment = garlandUnit * 0.55f
+            var d2 = 0f
+            while (d2 < length - segment) {
+                val p0 = measure.getPosition(d2)
+                val p1 = measure.getPosition(d2 + segment)
+                drawLine(color = ribbonColor.copy(alpha = 0.35f), start = p0, end = p1, strokeWidth = garlandUnit * 0.10f)
+                d2 += segment
+            }
+        }
+
+        // --- 8. Ornaments on Tree ---
+        run {
+            // Festive palette
+            val ornamentColors = listOf(
+                Color(0xFFE53935), // red
+                Color(0xFF8E24AA), // purple
+                Color(0xFF1E88E5), // blue
+                Color(0xFF43A047), // green
+                Color(0xFFFFA000), // amber
+                Color(0xFFFFD54F)  // gold
+            )
+            // Make ornaments smaller
+            val ornamentRadius = layerHeight * 0.14f
+
+            // Hardcoded positions (relative to tree)
+            val fixedOffsets = listOf(
+                Offset(centerX - treeWidth * 0.12f, treeTop + layerHeight * 1.2f),
+                Offset(centerX + treeWidth * 0.08f, treeTop + layerHeight * 1.5f),
+                Offset(centerX - treeWidth * 0.18f, treeTop + layerHeight * 2.2f),
+                Offset(centerX + treeWidth * 0.22f, treeTop + layerHeight * 2.8f),
+                Offset(centerX - treeWidth * 0.25f, treeTop + layerHeight * 3.5f),
+                Offset(centerX + treeWidth * 0.26f, treeTop + layerHeight * 4.0f),
+                Offset(centerX - treeWidth * 0.10f, treeTop + layerHeight * 4.6f),
+                Offset(centerX + treeWidth * 0.05f, treeTop + layerHeight * 5.3f),
+                Offset(centerX - treeWidth * 0.22f, treeTop + layerHeight * 6.0f),
+                Offset(centerX + treeWidth * 0.18f, treeTop + layerHeight * 6.6f)
+            )
+
+            // Deterministic pseudo-random ornaments
+            val randomOffsets = buildList {
+                val count = 24
+                for (i in 0 until count) {
+                    val li = (i * 7 + 3) % numLayers
+                    val progressFromTop = li / (numLayers - 1f)
+                    val layerTopY = treeTop + li * (layerHeight - layerOverlap)
+                    val baseWidth = treeWidth * (0.25f + 0.75f * progressFromTop)
+                    val wobble = (if (li % 2 == 0) 1f else -1f) * baseWidth * 0.06f
+                    val layerWidth = baseWidth + wobble
+                    val left = centerX - layerWidth / 2f + ornamentRadius
+                    val right = centerX + layerWidth / 2f - ornamentRadius
+
+                    val rx01 = ((i * 37 + 11) % 100) / 100f
+                    val ry01 = ((i * 53 + 29) % 100) / 100f
+                    val x = left + (right - left) * rx01
+                    val y = layerTopY + ornamentRadius + (layerHeight - 2 * ornamentRadius) * ry01
+                    add(Offset(x, y))
+                }
+            }
+
+            val ornaments = fixedOffsets + randomOffsets
+
+            // Draw ornaments with gradient, shine, and hook
+            ornaments.forEachIndexed { idx, pos ->
+                val baseColor = ornamentColors[idx % ornamentColors.size]
+
+                // Subtle outer glow
+                drawCircle(
+                    color = baseColor.copy(alpha = 0.20f),
+                    radius = ornamentRadius * 1.6f,
+                    center = pos
+                )
+                drawCircle(
+                    color = baseColor.copy(alpha = 0.30f),
+                    radius = ornamentRadius * 1.15f,
+                    center = pos
+                )
+
+                // Radial gradient for 3D shading (lighter top-left, darker bottom-right)
+                val gradient = Brush.radialGradient(
+                    colors = listOf(
+                        Color.White.copy(alpha = 0.55f),
+                        baseColor,
+                        baseColor.copy(alpha = 0.95f),
+                        Color.Black.copy(alpha = 0.20f)
+                    ),
+                    center = Offset(pos.x - ornamentRadius * 0.25f, pos.y - ornamentRadius * 0.25f),
+                    radius = ornamentRadius * 1.2f
+                )
+                drawCircle(
+                    brush = gradient,
+                    radius = ornamentRadius,
+                    center = pos
+                )
+
+                // Shine highlight (small white circle, offset to top-left)
+                val shineCenter = Offset(pos.x - ornamentRadius * 0.35f, pos.y - ornamentRadius * 0.35f)
+                drawCircle(
+                    color = Color.White.copy(alpha = 0.85f),
+                    radius = ornamentRadius * 0.22f,
+                    center = shineCenter
+                )
+                drawCircle(
+                    color = Color.White.copy(alpha = 0.55f),
+                    radius = ornamentRadius * 0.12f,
+                    center = Offset(shineCenter.x + ornamentRadius * 0.10f, shineCenter.y + ornamentRadius * 0.08f)
+                )
+
+                // Hook: small cap + curved hook above the ornament
+                val capWidth = ornamentRadius * 0.55f
+                val capHeight = ornamentRadius * 0.18f
+                val capLeft = pos.x - capWidth / 2f
+                val capTop = pos.y - ornamentRadius - capHeight * 0.6f
+                // Cap rectangle
+                drawRect(
+                    color = Color(0xFFB0BEC5),
+                    topLeft = Offset(capLeft, capTop),
+                    size = Size(capWidth, capHeight)
+                )
+                // Hook arc (simple bezier using Path)
+                val hookPath = Path().apply {
+                    moveTo(pos.x, capTop)
+                    // Curve upward and then back down slightly
+                    quadraticTo(
+                        pos.x + ornamentRadius * 0.22f,
+                        capTop - ornamentRadius * 0.35f,
+                        pos.x + ornamentRadius * 0.05f,
+                        capTop - ornamentRadius * 0.05f
+                    )
+                }
+                drawPath(
+                    path = hookPath,
+                    color = Color(0xFF90A4AE),
+                    alpha = 0.9f
+                )
+            }
         }
     }
 }
