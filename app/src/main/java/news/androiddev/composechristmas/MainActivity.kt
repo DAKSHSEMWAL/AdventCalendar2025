@@ -12,9 +12,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.tooling.preview.Preview
 import news.androiddev.composechristmas.ui.theme.ComposeChristmasTheme
 
@@ -51,6 +55,7 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
                 startY = 0f,
                 endY = canvasHeight
             )
+
             SkyTheme.WinterMorning -> Brush.verticalGradient(
                 colors = listOf(
                     Color(0xFFE3F2FD), // Pale Blue
@@ -86,12 +91,12 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
             Offset(canvasWidth * 0.92f, canvasHeight * 0.12f),
             Offset(canvasWidth * 0.95f, canvasHeight * 0.41f)
         ) +
-        // Spread deterministic pseudo-random stars throughout the sky (top to ~70% height)
-        List(30) { i ->
-            val x = (0.04f + 0.92f * ((i * 37) % 100) / 100f) * canvasWidth
-            val y = (0.04f + 0.66f * ((i * 53 + 17) % 100) / 100f) * canvasHeight
-            Offset(x, y)
-        }
+                // Spread deterministic pseudo-random stars throughout the sky (top to ~70% height)
+                List(30) { i ->
+                    val x = (0.04f + 0.92f * ((i * 37) % 100) / 100f) * canvasWidth
+                    val y = (0.04f + 0.66f * ((i * 53 + 17) % 100) / 100f) * canvasHeight
+                    Offset(x, y)
+                }
 
         for (pos in starPositions) {
             // Glow Halo
@@ -115,8 +120,10 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
             val moonRadius = canvasWidth.coerceAtMost(canvasHeight) * 0.08f
 
             // Colors vary slightly by theme
-            val moonBaseColor = if (skyTheme == SkyTheme.NightSky) Color(0xFFFFF3E0) else Color(0xFFFFFDE7)
-            val moonShadowColor = if (skyTheme == SkyTheme.NightSky) Color(0xFF0B1026) else Color(0xFF90CAF9)
+            val moonBaseColor =
+                if (skyTheme == SkyTheme.NightSky) Color(0xFFFFF3E0) else Color(0xFFFFFDE7)
+            val moonShadowColor =
+                if (skyTheme == SkyTheme.NightSky) Color(0xFF0B1026) else Color(0xFF90CAF9)
 
             // Soft glow behind moon
             drawCircle(
@@ -307,6 +314,54 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
             size = Size(trunkWidth, trunkBottom - trunkTop)
         )
 
+        // --- Candy canes hanging on the tree ---
+        fun drawCandyCane(center: Offset, height: Float, thickness: Float, rotationDeg: Float) {
+            val hookR = thickness * 2.2f
+            val topY = center.y - height / 2f
+            val path = Path().apply {
+                // Hook curve to the right, then vertical stem
+                moveTo(center.x, topY)
+                quadraticTo(
+                    center.x + hookR * 0.9f,
+                    topY + hookR * 0.2f,
+                    center.x + hookR * 1.4f,
+                    topY + hookR * 0.8f
+                )
+                quadraticTo(
+                    center.x + hookR * 1.8f,
+                    topY + hookR * 1.6f,
+                    center.x + hookR * 0.9f,
+                    topY + hookR * 2.2f
+                )
+                lineTo(center.x, center.y + height / 2f)
+            }
+
+            withTransform({ rotate(rotationDeg, pivot = center) }) {
+                // Base white cane body
+                drawPath(
+                    path = path,
+                    color = Color.White,
+                    style = Stroke(width = thickness, cap = StrokeCap.Round)
+                )
+                // Red stripes via dash effect along the cane path
+                val stripeLen = thickness * 1.6f
+                drawPath(
+                    path = path,
+                    color = Color(0xFFD32F2F),
+                    style = Stroke(
+                        width = thickness,
+                        cap = StrokeCap.Round,
+                        pathEffect = PathEffect.dashPathEffect(
+                            floatArrayOf(stripeLen, stripeLen),
+                            0f
+                        )
+                    )
+                )
+            }
+        }
+
+        // Calls moved after foliage to ensure canes render in front of tree
+
         // --- 7. Tree Foliage Layers ---
         val layerBounds = mutableListOf<Pair<Float, Float>>()
         for (i in 0 until numLayers) {
@@ -355,6 +410,26 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
             drawPath(path = path, brush = foliageBrush)
         }
 
+        // --- Candy canes (draw AFTER foliage so they appear in front) ---
+        run {
+            val midX = centerX
+            val leftCaneCenter = Offset(midX - treeWidth * 0.22f, treeTop + layerHeight * 5.4f)
+            val rightCaneCenter = Offset(midX + treeWidth * 0.20f, treeTop + layerHeight * 3.6f)
+            // Smaller size and thinner stripes
+            drawCandyCane(
+                center = leftCaneCenter,
+                height = layerHeight * 1.2f,
+                thickness = treeWidth * 0.035f,
+                rotationDeg = -16f
+            )
+            drawCandyCane(
+                center = rightCaneCenter,
+                height = layerHeight * 1.2f,
+                thickness = treeWidth * 0.032f,
+                rotationDeg = 12f
+            )
+        }
+
         // --- 7b. Garland (tinsel wrapping with bezier path and PathMeasure) ---
         run {
             // Size unit for garland elements (similar to ornamentRadius but scoped here)
@@ -393,7 +468,8 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
                     val nextBase = treeWidth * (0.25f + 0.75f * nextT)
                     val nextWobble = (if (wraps[idx + 1] % 2 == 0) 1f else -1f) * nextBase * 0.06f
                     val nextWidth = nextBase + nextWobble
-                    val nextY = treeTop + wraps[idx + 1] * (layerHeight - layerOverlap) + layerHeight * 0.45f
+                    val nextY =
+                        treeTop + wraps[idx + 1] * (layerHeight - layerOverlap) + layerHeight * 0.45f
                     val nextLeftX = centerX - nextWidth * 0.45f
                     // Connect downwards with a gentle curve back to the left edge
                     garlandPath.cubicTo(
@@ -416,11 +492,23 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
                 val pos = measure.getPosition(dist)
                 val sparkleColor = Color(0xFFE0F7FA)
                 // Base tinsel dot
-                drawCircle(color = sparkleColor.copy(alpha = 0.75f), radius = garlandUnit * 0.10f, center = pos)
+                drawCircle(
+                    color = sparkleColor.copy(alpha = 0.75f),
+                    radius = garlandUnit * 0.10f,
+                    center = pos
+                )
                 // Tiny star-like cross
                 val crossLen = garlandUnit * 0.16f
-                drawLine(color = sparkleColor.copy(alpha = 0.65f), start = Offset(pos.x - crossLen, pos.y), end = Offset(pos.x + crossLen, pos.y))
-                drawLine(color = sparkleColor.copy(alpha = 0.65f), start = Offset(pos.x, pos.y - crossLen), end = Offset(pos.x, pos.y + crossLen))
+                drawLine(
+                    color = sparkleColor.copy(alpha = 0.65f),
+                    start = Offset(pos.x - crossLen, pos.y),
+                    end = Offset(pos.x + crossLen, pos.y)
+                )
+                drawLine(
+                    color = sparkleColor.copy(alpha = 0.65f),
+                    start = Offset(pos.x, pos.y - crossLen),
+                    end = Offset(pos.x, pos.y + crossLen)
+                )
                 dist += step
             }
 
@@ -432,7 +520,12 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
             while (d2 < length - segment) {
                 val p0 = measure.getPosition(d2)
                 val p1 = measure.getPosition(d2 + segment)
-                drawLine(color = ribbonColor.copy(alpha = 0.35f), start = p0, end = p1, strokeWidth = garlandUnit * 0.10f)
+                drawLine(
+                    color = ribbonColor.copy(alpha = 0.35f),
+                    start = p0,
+                    end = p1,
+                    strokeWidth = garlandUnit * 0.10f
+                )
                 d2 += segment
             }
         }
@@ -522,7 +615,8 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
                 )
 
                 // Shine highlight (small white circle, offset to top-left)
-                val shineCenter = Offset(pos.x - ornamentRadius * 0.35f, pos.y - ornamentRadius * 0.35f)
+                val shineCenter =
+                    Offset(pos.x - ornamentRadius * 0.35f, pos.y - ornamentRadius * 0.35f)
                 drawCircle(
                     color = Color.White.copy(alpha = 0.85f),
                     radius = ornamentRadius * 0.22f,
@@ -531,7 +625,10 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
                 drawCircle(
                     color = Color.White.copy(alpha = 0.55f),
                     radius = ornamentRadius * 0.12f,
-                    center = Offset(shineCenter.x + ornamentRadius * 0.10f, shineCenter.y + ornamentRadius * 0.08f)
+                    center = Offset(
+                        shineCenter.x + ornamentRadius * 0.10f,
+                        shineCenter.y + ornamentRadius * 0.08f
+                    )
                 )
 
                 // Hook: small cap + curved hook above the ornament
