@@ -430,6 +430,108 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
             )
         }
 
+        // --- 7a. Fairy Lights Wire (thin, wraps like garland) ---
+        run {
+            // Thin wire width
+            val wireWidth = layerHeight * 0.06f
+            val wirePath = Path()
+            val wraps = listOf(2, 4, 6, 8) // distribute wire across layers
+            var started = false
+            for ((idx, layerIndex) in wraps.withIndex()) {
+                val t = layerIndex / (numLayers - 1f)
+                val baseWidth = treeWidth * (0.25f + 0.75f * t)
+                val wobble = (if (layerIndex % 2 == 0) 1f else -1f) * baseWidth * 0.05f
+                val layerWidth = baseWidth + wobble
+                val y = treeTop + layerIndex * (layerHeight - layerOverlap) + layerHeight * 0.52f
+                val leftX = centerX - layerWidth * 0.50f
+                val rightX = centerX + layerWidth * 0.50f
+
+                val amplitude = layerHeight * 0.18f
+                val cp1 = Offset(centerX - layerWidth * 0.20f, y - amplitude * 0.8f)
+                val cp2 = Offset(centerX + layerWidth * 0.20f, y + amplitude * 0.8f)
+
+                if (!started) {
+                    wirePath.moveTo(leftX, y)
+                    started = true
+                }
+                // Wave from left to right
+                wirePath.cubicTo(cp1.x, cp1.y, cp2.x, cp2.y, rightX, y)
+                // Descent to next wrap
+                if (idx != wraps.lastIndex) {
+                    val nextT = wraps[idx + 1] / (numLayers - 1f)
+                    val nextBase = treeWidth * (0.25f + 0.75f * nextT)
+                    val nextWobble = (if (wraps[idx + 1] % 2 == 0) 1f else -1f) * nextBase * 0.05f
+                    val nextWidth = nextBase + nextWobble
+                    val nextY = treeTop + wraps[idx + 1] * (layerHeight - layerOverlap) + layerHeight * 0.50f
+                    val nextLeftX = centerX - nextWidth * 0.48f
+                    wirePath.cubicTo(
+                        centerX + layerWidth * 0.08f, y + amplitude * 0.5f,
+                        centerX - nextWidth * 0.16f, nextY - amplitude * 0.5f,
+                        nextLeftX, nextY
+                    )
+                }
+            }
+
+            // Draw the wire: subtle dark color with slight transparency
+            drawPath(
+                path = wirePath,
+                color = Color(0xFF37474F).copy(alpha = 0.85f),
+                style = Stroke(width = wireWidth, cap = StrokeCap.Round)
+            )
+
+            // Add fairy light bulbs along the wire
+            val measure = androidx.compose.ui.graphics.PathMeasure()
+            measure.setPath(wirePath, false)
+            val length = measure.length
+
+            val bulbStep = layerHeight * 0.55f
+            val bulbRadius = layerHeight * 0.10f
+            val glowRadius = bulbRadius * 2.2f
+            val palette = listOf(
+                Color(0xFFFF5252), // red
+                Color(0xFFFFD740), // amber
+                Color(0xFF69F0AE), // green
+                Color(0xFF40C4FF), // blue
+                Color(0xFFFF80AB)  // pink
+            )
+
+            var dist = bulbStep * 0.5f
+            var idx = 0
+            while (dist <= length) {
+                val pos = measure.getPosition(dist)
+                val bulbColor = palette[idx % palette.size]
+
+                // Soft outer glow
+                drawCircle(
+                    color = bulbColor.copy(alpha = 0.25f),
+                    radius = glowRadius,
+                    center = pos
+                )
+                drawCircle(
+                    color = bulbColor.copy(alpha = 0.18f),
+                    radius = glowRadius * 0.65f,
+                    center = pos
+                )
+
+                // Bulb core
+                drawCircle(
+                    color = bulbColor,
+                    radius = bulbRadius,
+                    center = pos
+                )
+
+                // Tiny white spec highlight
+                drawCircle(
+                    color = Color.White.copy(alpha = 0.85f),
+                    radius = bulbRadius * 0.18f,
+                    center = Offset(pos.x - bulbRadius * 0.25f, pos.y - bulbRadius * 0.25f)
+                )
+
+                dist += bulbStep
+                idx++
+            }
+        }
+
         // --- 7b. Garland (tinsel wrapping with bezier path and PathMeasure) ---
         run {
             // Size unit for garland elements (similar to ornamentRadius but scoped here)
