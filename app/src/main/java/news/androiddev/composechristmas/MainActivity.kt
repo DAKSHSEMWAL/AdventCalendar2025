@@ -9,6 +9,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -21,6 +27,8 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.tooling.preview.Preview
 import news.androiddev.composechristmas.ui.theme.ComposeChristmasTheme
+import kotlin.math.PI
+import kotlin.math.sin
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -38,8 +46,39 @@ class MainActivity : ComponentActivity() {
 
 enum class SkyTheme { NightSky, WinterMorning }
 
+// Day 12: Light state model (for future animation/twinkle)
+data class LightState(
+    val position: Offset,
+    val color: Color,
+    val radius: Float,
+    val isOn: Boolean = true,
+    val phase: Float = 0f // 0..1 phase offset for animations
+)
+
 @Composable
 fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.NightSky) {
+    // Twinkle animation time source (0..1 repeating)
+    val twinkleTransition = rememberInfiniteTransition(label = "twinkle")
+    val twinkleTime = twinkleTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 2200, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "twinkleTime"
+    )
+    // Separate time base for slow tree sway
+    val treeSwayTime = twinkleTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 6200, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "treeSwayTime"
+    )
+
     Canvas(modifier = modifier.fillMaxSize()) {
         val canvasWidth = size.width
         val canvasHeight = size.height
@@ -237,12 +276,17 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
             endY = treeTop + treeHeight
         )
 
-        // --- 5. Star Topper (draw behind trunk and foliage) ---
+        // --- 5. Star Topper (animated) ---
         val centerX = canvasWidth / 2f
         run {
             val starCenter = Offset(centerX, treeTop - layerHeight * 0.25f)
             val outerRadius = treeWidth * 0.10f
             val innerRadius = outerRadius * 0.45f
+
+            // Animation factors for star pulse and subtle rotation
+            val starPulse = ((sin(2.0 * PI * (twinkleTime.value * 1.20 + 0.05)) + 1.0) * 0.5).toFloat()
+            val starScale = 0.96f + 0.08f * starPulse
+            val starRot = (sin(2.0 * PI * (twinkleTime.value * 0.60 + 0.15)) * 2.0).toFloat()
 
             // Build a 5-point star path
             val starPath = Path().apply {
@@ -276,20 +320,25 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
                 radius = outerRadius * 1.25f
             )
 
-            // Soft glow around the star
-            drawCircle(
-                color = Color(0xFFFFF8E1).copy(alpha = 0.35f),
-                radius = outerRadius * 2.6f,
-                center = starCenter
-            )
-            drawCircle(
-                color = Color(0xFFFFFDE7).copy(alpha = 0.22f),
-                radius = outerRadius * 1.6f,
-                center = starCenter
-            )
+            withTransform({
+                rotate(starRot, pivot = starCenter)
+                scale(scaleX = starScale, scaleY = starScale, pivot = starCenter)
+            }) {
+                // Soft glow around the star, animated alpha and radius
+                drawCircle(
+                    color = Color(0xFFFFF8E1).copy(alpha = 0.28f + 0.20f * starPulse),
+                    radius = outerRadius * (2.3f + 0.5f * starPulse),
+                    center = starCenter
+                )
+                drawCircle(
+                    color = Color(0xFFFFFDE7).copy(alpha = 0.18f + 0.14f * starPulse),
+                    radius = outerRadius * (1.4f + 0.3f * starPulse),
+                    center = starCenter
+                )
 
-            // Draw the star with the gradient
-            drawPath(path = starPath, brush = starGradient)
+                // Draw the star with the gradient
+                drawPath(path = starPath, brush = starGradient)
+            }
         }
 
         // --- 6. Trunk Logic ---
@@ -308,11 +357,15 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
         val trunkTop = lastLayerBottom - layerHeight * 0.5f
         val trunkBottom = groundYAtCenter + 10f // Bury it slightly
 
-        drawRect(
-            color = Color(0xFF5D4037),
-            topLeft = Offset(trunkLeft, trunkTop),
-            size = Size(trunkWidth, trunkBottom - trunkTop)
-        )
+        // Tree sway animation (gentle rotation around ground center)
+        val treeSwayDeg = (sin(2.0 * PI * (treeSwayTime.value + 0.10)) * 1.1).toFloat()
+
+        withTransform({ rotate(treeSwayDeg, pivot = Offset(centerX, groundYAtCenter)) }) {
+            drawRect(
+                color = Color(0xFF5D4037),
+                topLeft = Offset(trunkLeft, trunkTop),
+                size = Size(trunkWidth, trunkBottom - trunkTop)
+            )
 
         // --- Candy canes hanging on the tree ---
         fun drawCandyCane(center: Offset, height: Float, thickness: Float, rotationDeg: Float) {
@@ -479,56 +532,68 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
                 style = Stroke(width = wireWidth, cap = StrokeCap.Round)
             )
 
-            // Add fairy light bulbs along the wire
+            // Add fairy light bulbs along the wire using LightState
             val measure = androidx.compose.ui.graphics.PathMeasure()
             measure.setPath(wirePath, false)
             val length = measure.length
 
-            val bulbStep = layerHeight * 0.55f
-            val bulbRadius = layerHeight * 0.10f
-            val glowRadius = bulbRadius * 2.2f
+            val bulbStep = layerHeight * 0.45f // denser spacing for a fuller look
+            val baseRadius = layerHeight * 0.10f
             val palette = listOf(
+                Color(0xFFFFF6E5), // warm white
                 Color(0xFFFF5252), // red
-                Color(0xFFFFD740), // amber
                 Color(0xFF69F0AE), // green
-                Color(0xFF40C4FF), // blue
-                Color(0xFFFF80AB)  // pink
+                Color(0xFF40C4FF), // cyan-blue
+                Color(0xFFFFD740), // amber
+                Color(0xFFEA80FC)  // violet
             )
 
-            var dist = bulbStep * 0.5f
-            var idx = 0
-            while (dist <= length) {
-                val pos = measure.getPosition(dist)
-                val bulbColor = palette[idx % palette.size]
+            val lights = buildList {
+                var dist = bulbStep * 0.5f
+                var idx = 0
+                while (dist <= length) {
+                    val pos = measure.getPosition(dist)
+                    val color = palette[idx % palette.size]
+                    val phase = ((idx * 37) % 100) / 100f // deterministic phase offset
+                    val jitter = ((idx * 17 + 7) % 100) / 100f // 0..1
+                    val radius = baseRadius * (0.9f + 0.2f * jitter) // subtle size variance
+                    add(LightState(position = pos, color = color, radius = radius, isOn = true, phase = phase))
+                    dist += bulbStep
+                    idx++
+                }
+            }
 
+            // Render bulbs (static for now; LightState enables future animation)
+            lights.forEach { light ->
+                // Twinkle factor: 0.0..1.0 based on shared time and per-light phase
+                val sparkle = ((sin(2.0 * PI * (twinkleTime.value + light.phase)) + 1.0) * 0.5).toFloat()
+                val onFactor = if (light.isOn) 1f else 0.15f
+                val factor = (0.45f + 0.55f * sparkle) * onFactor
+
+                val glowRadius = light.radius * (2.0f + 0.6f * sparkle)
                 // Soft outer glow
                 drawCircle(
-                    color = bulbColor.copy(alpha = 0.25f),
+                    color = light.color.copy(alpha = 0.28f * factor),
                     radius = glowRadius,
-                    center = pos
+                    center = light.position
                 )
                 drawCircle(
-                    color = bulbColor.copy(alpha = 0.18f),
+                    color = light.color.copy(alpha = 0.20f * factor),
                     radius = glowRadius * 0.65f,
-                    center = pos
+                    center = light.position
                 )
-
                 // Bulb core
                 drawCircle(
-                    color = bulbColor,
-                    radius = bulbRadius,
-                    center = pos
+                    color = light.color.copy(alpha = 0.90f * factor),
+                    radius = light.radius,
+                    center = light.position
                 )
-
                 // Tiny white spec highlight
                 drawCircle(
-                    color = Color.White.copy(alpha = 0.85f),
-                    radius = bulbRadius * 0.18f,
-                    center = Offset(pos.x - bulbRadius * 0.25f, pos.y - bulbRadius * 0.25f)
+                    color = Color.White.copy(alpha = 0.85f * factor),
+                    radius = light.radius * 0.18f,
+                    center = Offset(light.position.x - light.radius * 0.25f, light.position.y - light.radius * 0.25f)
                 )
-
-                dist += bulbStep
-                idx++
             }
         }
 
@@ -761,6 +826,8 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
                     alpha = 0.9f
                 )
             }
+        }
+        // End tree sway transform
         }
     }
 }
