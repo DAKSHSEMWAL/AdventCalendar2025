@@ -829,6 +829,152 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
         }
         // End tree sway transform
         }
+
+        // --- 9. Gift Boxes with Ribbons and Bows ---
+        run {
+            // Position gifts on snowy ground, centered under tree
+            // Bottom of gifts should be at ground level
+            val giftBottom = groundYAtCenter
+            
+            // Gift 1: Red box on the left
+            val gift1X = centerX - treeWidth * 0.28f
+            val gift1Width = treeWidth * 0.18f
+            val gift1Height = gift1Width * 0.95f
+            val gift1Color = Color(0xFFD32F2F)
+            val gift1Top = giftBottom - gift1Height
+            
+            // Box
+            drawRect(
+                color = gift1Color,
+                topLeft = Offset(gift1X, gift1Top),
+                size = Size(gift1Width, gift1Height)
+            )
+            // Vertical ribbon
+            val ribbonWidth = gift1Width * 0.15f
+            drawRect(
+                color = Color(0xFFFFD700),
+                topLeft = Offset(gift1X + gift1Width / 2f - ribbonWidth / 2f, gift1Top),
+                size = Size(ribbonWidth, gift1Height)
+            )
+            // Horizontal ribbon
+            drawRect(
+                color = Color(0xFFFFD700),
+                topLeft = Offset(gift1X, gift1Top + gift1Height / 2f - ribbonWidth / 2f),
+                size = Size(gift1Width, ribbonWidth)
+            )
+            // Bow (two loops and center knot)
+            val bowCenterX = gift1X + gift1Width / 2f
+            val bowCenterY = gift1Top + gift1Height / 2f
+            val bowSize = ribbonWidth * 2.2f
+            // Left loop
+            drawCircle(
+                color = Color(0xFFFFD700),
+                radius = bowSize * 0.5f,
+                center = Offset(bowCenterX - bowSize * 0.6f, bowCenterY)
+            )
+            // Right loop
+            drawCircle(
+                color = Color(0xFFFFD700),
+                radius = bowSize * 0.5f,
+                center = Offset(bowCenterX + bowSize * 0.6f, bowCenterY)
+            )
+            // Center knot
+            drawCircle(
+                color = Color(0xFFFFAA00),
+                radius = bowSize * 0.35f,
+                center = Offset(bowCenterX, bowCenterY)
+            )
+            
+            // Gift 2: Green box in center (taller)
+            val gift2X = centerX - treeWidth * 0.10f
+            val gift2Width = treeWidth * 0.20f
+            val gift2Height = gift2Width * 1.15f
+            val gift2Color = Color(0xFF388E3C)
+            val gift2Top = giftBottom - gift2Height
+            
+            // Box
+            drawRect(
+                color = gift2Color,
+                topLeft = Offset(gift2X, gift2Top),
+                size = Size(gift2Width, gift2Height)
+            )
+            // Vertical ribbon (silver)
+            drawRect(
+                color = Color(0xFFC0C0C0),
+                topLeft = Offset(gift2X + gift2Width / 2f - ribbonWidth / 2f, gift2Top),
+                size = Size(ribbonWidth, gift2Height)
+            )
+            // Horizontal ribbon
+            drawRect(
+                color = Color(0xFFC0C0C0),
+                topLeft = Offset(gift2X, gift2Top + gift2Height * 0.35f - ribbonWidth / 2f),
+                size = Size(gift2Width, ribbonWidth)
+            )
+            // Bow on top (larger, at top of box)
+            val bow2X = gift2X + gift2Width / 2f
+            val bow2Y = gift2Top + gift2Height * 0.35f
+            val bow2Size = ribbonWidth * 2.4f
+            drawCircle(
+                color = Color(0xFFC0C0C0),
+                radius = bow2Size * 0.5f,
+                center = Offset(bow2X - bow2Size * 0.6f, bow2Y)
+            )
+            drawCircle(
+                color = Color(0xFFC0C0C0),
+                radius = bow2Size * 0.5f,
+                center = Offset(bow2X + bow2Size * 0.6f, bow2Y)
+            )
+            drawCircle(
+                color = Color(0xFFB0B0B0),
+                radius = bow2Size * 0.38f,
+                center = Offset(bow2X, bow2Y)
+            )
+            
+            // Gift 3: Blue box on the right (smaller, wider)
+            val gift3X = centerX + treeWidth * 0.12f
+            val gift3Width = treeWidth * 0.22f
+            val gift3Height = gift3Width * 0.75f
+            val gift3Color = Color(0xFF1976D2)
+            val gift3Top = giftBottom - gift3Height
+            
+            // Box
+            drawRect(
+                color = gift3Color,
+                topLeft = Offset(gift3X, gift3Top),
+                size = Size(gift3Width, gift3Height)
+            )
+            // Vertical ribbon (white with hint of blue)
+            drawRect(
+                color = Color(0xFFF0F8FF),
+                topLeft = Offset(gift3X + gift3Width * 0.40f - ribbonWidth / 2f, gift3Top),
+                size = Size(ribbonWidth, gift3Height)
+            )
+            // Horizontal ribbon
+            drawRect(
+                color = Color(0xFFF0F8FF),
+                topLeft = Offset(gift3X, gift3Top + gift3Height / 2f - ribbonWidth / 2f),
+                size = Size(gift3Width, ribbonWidth)
+            )
+            // Bow
+            val bow3X = gift3X + gift3Width * 0.40f
+            val bow3Y = gift3Top + gift3Height / 2f
+            val bow3Size = ribbonWidth * 2.0f
+            drawCircle(
+                color = Color(0xFFF0F8FF),
+                radius = bow3Size * 0.5f,
+                center = Offset(bow3X - bow3Size * 0.6f, bow3Y)
+            )
+            drawCircle(
+                color = Color(0xFFF0F8FF),
+                radius = bow3Size * 0.5f,
+                center = Offset(bow3X + bow3Size * 0.6f, bow3Y)
+            )
+            drawCircle(
+                color = Color(0xFFE0F0FF),
+                radius = bow3Size * 0.35f,
+                center = Offset(bow3X, bow3Y)
+            )
+        }
     }
 }
 
