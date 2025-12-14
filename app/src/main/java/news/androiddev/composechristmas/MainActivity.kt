@@ -78,32 +78,79 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
         ),
         label = "treeSwayTime"
     )
+    // Sky animation cycle for sunset/sunrise effect
+    val skyTime = twinkleTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 18000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "skyTime"
+    )
+    // Star twinkle time
+    val starTwinkleTime = twinkleTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 3500, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "starTwinkleTime"
+    )
 
     Canvas(modifier = modifier.fillMaxSize()) {
         val canvasWidth = size.width
         val canvasHeight = size.height
 
-        // --- 1. Sky Background ---
+        // --- 1. Sky Background (Animated) ---
+        // Cycle through night -> dawn -> day -> dusk -> night
+        val skyPhase = (sin(2.0 * PI * skyTime.value) + 1.0) * 0.5 // 0..1 smooth cycle
+        
         val skyBrush = when (skyTheme) {
-            SkyTheme.NightSky -> Brush.verticalGradient(
-                colors = listOf(
+            SkyTheme.NightSky -> {
+                // Animate between deep night and dawn colors
+                val nightColors = listOf(
                     Color(0xFF0B1026), // Deep Navy
                     Color(0xFF152044),
                     Color(0xFF1F2D5E)
-                ),
-                startY = 0f,
-                endY = canvasHeight
-            )
+                )
+                val dawnColors = listOf(
+                    Color(0xFF2B1308), // Purple dawn
+                    Color(0xFF7A2E12),
+                    Color(0xFFFF6A1A)
+                )
+                val blendedColors = nightColors.zip(dawnColors).map { (night, dawn) ->
+                    androidx.compose.ui.graphics.lerp(night, dawn, skyPhase.toFloat())
+                }
+                Brush.verticalGradient(
+                    colors = blendedColors,
+                    startY = 0f,
+                    endY = canvasHeight
+                )
+            }
 
-            SkyTheme.WinterMorning -> Brush.verticalGradient(
-                colors = listOf(
+            SkyTheme.WinterMorning -> {
+                // Animate between bright morning and softer mid-day
+                val morningColors = listOf(
                     Color(0xFFE3F2FD), // Pale Blue
                     Color(0xFFBBDEFB),
                     Color(0xFF90CAF9)
-                ),
-                startY = 0f,
-                endY = canvasHeight
-            )
+                )
+                val midDayColors = listOf(
+                    Color(0xFFB3E5FC),
+                    Color(0xFF81D4FA),
+                    Color(0xFF4FC3F7)
+                )
+                val blendedColors = morningColors.zip(midDayColors).map { (morning, midDay) ->
+                    androidx.compose.ui.graphics.lerp(morning, midDay, skyPhase.toFloat())
+                }
+                Brush.verticalGradient(
+                    colors = blendedColors,
+                    startY = 0f,
+                    endY = canvasHeight
+                )
+            }
         }
         drawRect(brush = skyBrush, topLeft = Offset.Zero, size = size)
 
@@ -137,17 +184,22 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
                     Offset(x, y)
                 }
 
-        for (pos in starPositions) {
-            // Glow Halo
+        starPositions.forEachIndexed { idx, pos ->
+            // Each star has its own phase offset for staggered twinkling
+            val starPhase = ((idx * 23 + 7) % 100) / 100f
+            val starBrightness = ((sin(2.0 * PI * (starTwinkleTime.value + starPhase)) + 1.0) * 0.5).toFloat()
+            val brightness = 0.5f + 0.5f * starBrightness // 0.5..1.0 range
+            
+            // Glow Halo (animated)
             drawCircle(
-                color = starColor.copy(alpha = starGlowAlpha),
-                radius = starRadiusBase * 3.5f,
+                color = starColor.copy(alpha = starGlowAlpha * brightness),
+                radius = starRadiusBase * (3.0f + 0.8f * starBrightness),
                 center = pos
             )
-            // Core
+            // Core (animated size and opacity)
             drawCircle(
-                color = starColor,
-                radius = starRadiusBase,
+                color = starColor.copy(alpha = brightness),
+                radius = starRadiusBase * (0.9f + 0.2f * starBrightness),
                 center = pos
             )
         }
