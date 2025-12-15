@@ -23,6 +23,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.tooling.preview.Preview
@@ -54,6 +55,95 @@ data class LightState(
     val isOn: Boolean = true,
     val phase: Float = 0f // 0..1 phase offset for animations
 )
+
+// Day 15: Snowflake drawing helper with customizable parameters
+private fun DrawScope.drawSnowflake(
+    center: Offset,
+    size: Float,
+    branches: Int = 6,
+    complexity: Int = 2, // Number of detail levels per branch
+    color: Color = Color.White,
+    alpha: Float = 1f,
+    rotation: Float = 0f
+) {
+    val strokeWidth = size * 0.08f
+    
+    withTransform({
+        rotate(rotation, pivot = center)
+    }) {
+        // Draw each main branch radiating from center
+        for (i in 0 until branches) {
+            val angle = (i * 360f / branches) * (PI / 180f)
+            val cosA = kotlin.math.cos(angle).toFloat()
+            val sinA = kotlin.math.sin(angle).toFloat()
+            
+            // Main branch line
+            val endX = center.x + size * cosA
+            val endY = center.y + size * sinA
+            drawLine(
+                color = color,
+                start = center,
+                end = Offset(endX, endY),
+                strokeWidth = strokeWidth,
+                cap = StrokeCap.Round,
+                alpha = alpha
+            )
+            
+            // Add detail branches along the main branch
+            for (level in 1..complexity) {
+                val branchDist = size * (level.toFloat() / (complexity + 1))
+                val branchLength = size * (0.35f - level * 0.08f)
+                val branchX = center.x + branchDist * cosA
+                val branchY = center.y + branchDist * sinA
+                
+                // Left side branch
+                val leftAngle = angle - PI.toFloat() / 5f
+                val leftEndX = branchX + branchLength * kotlin.math.cos(leftAngle).toFloat()
+                val leftEndY = branchY + branchLength * kotlin.math.sin(leftAngle).toFloat()
+                drawLine(
+                    color = color,
+                    start = Offset(branchX, branchY),
+                    end = Offset(leftEndX, leftEndY),
+                    strokeWidth = strokeWidth * 0.75f,
+                    cap = StrokeCap.Round,
+                    alpha = alpha
+                )
+                
+                // Right side branch
+                val rightAngle = angle + PI.toFloat() / 5f
+                val rightEndX = branchX + branchLength * kotlin.math.cos(rightAngle).toFloat()
+                val rightEndY = branchY + branchLength * kotlin.math.sin(rightAngle).toFloat()
+                drawLine(
+                    color = color,
+                    start = Offset(branchX, branchY),
+                    end = Offset(rightEndX, rightEndY),
+                    strokeWidth = strokeWidth * 0.75f,
+                    cap = StrokeCap.Round,
+                    alpha = alpha
+                )
+            }
+            
+            // Optional: Add tiny crystalline details at the tips
+            if (complexity > 1) {
+                val tipSize = size * 0.12f
+                drawCircle(
+                    color = color,
+                    radius = tipSize * 0.3f,
+                    center = Offset(endX, endY),
+                    alpha = alpha * 0.7f
+                )
+            }
+        }
+        
+        // Center crystalline core
+        drawCircle(
+            color = color,
+            radius = strokeWidth * 1.2f,
+            center = center,
+            alpha = alpha
+        )
+    }
+}
 
 @Composable
 fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.NightSky) {
@@ -1025,6 +1115,67 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
                 color = Color(0xFFE0F0FF),
                 radius = bow3Size * 0.35f,
                 center = Offset(bow3X, bow3Y)
+            )
+        }
+
+        // --- 10. Sample Snowflakes (Day 15 Demo) ---
+        // Demonstrate various snowflake configurations
+        run {
+            val baseSize = canvasWidth * 0.04f
+            
+            // Classic 6-branch snowflake with high complexity
+            drawSnowflake(
+                center = Offset(canvasWidth * 0.15f, canvasHeight * 0.25f),
+                size = baseSize * 1.2f,
+                branches = 6,
+                complexity = 2,
+                color = Color.White,
+                alpha = 0.85f,
+                rotation = 15f
+            )
+            
+            // Simple 8-branch snowflake
+            drawSnowflake(
+                center = Offset(canvasWidth * 0.85f, canvasHeight * 0.35f),
+                size = baseSize * 0.9f,
+                branches = 8,
+                complexity = 1,
+                color = Color(0xFFE3F2FD),
+                alpha = 0.75f,
+                rotation = -22f
+            )
+            
+            // Larger 6-branch with minimal detail
+            drawSnowflake(
+                center = Offset(canvasWidth * 0.25f, canvasHeight * 0.55f),
+                size = baseSize * 1.5f,
+                branches = 6,
+                complexity = 1,
+                color = Color.White,
+                alpha = 0.70f,
+                rotation = 45f
+            )
+            
+            // Small delicate 12-branch snowflake
+            drawSnowflake(
+                center = Offset(canvasWidth * 0.75f, canvasHeight * 0.50f),
+                size = baseSize * 0.7f,
+                branches = 12,
+                complexity = 1,
+                color = Color(0xFFF0F8FF),
+                alpha = 0.65f,
+                rotation = 0f
+            )
+            
+            // Medium complex 6-branch
+            drawSnowflake(
+                center = Offset(canvasWidth * 0.12f, canvasHeight * 0.70f),
+                size = baseSize,
+                branches = 6,
+                complexity = 3,
+                color = Color.White,
+                alpha = 0.80f,
+                rotation = -30f
             )
         }
     }
