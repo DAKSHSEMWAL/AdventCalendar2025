@@ -1118,65 +1118,61 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
             )
         }
 
-        // --- 10. Sample Snowflakes (Day 15 Demo) ---
-        // Demonstrate various snowflake configurations
+        // --- 10. Snowfall (Day 16: Static snowflakes across sky) ---
         run {
-            val baseSize = canvasWidth * 0.04f
+            val baseSize = canvasWidth * 0.025f
+            val skyHeight = canvasHeight * 0.78f // Keep snowflakes above ground/tree area
             
-            // Classic 6-branch snowflake with high complexity
-            drawSnowflake(
-                center = Offset(canvasWidth * 0.15f, canvasHeight * 0.25f),
-                size = baseSize * 1.2f,
-                branches = 6,
-                complexity = 2,
-                color = Color.White,
-                alpha = 0.85f,
-                rotation = 15f
-            )
+            // Generate deterministic pseudo-random snowflakes
+            val snowflakeCount = 45
             
-            // Simple 8-branch snowflake
-            drawSnowflake(
-                center = Offset(canvasWidth * 0.85f, canvasHeight * 0.35f),
-                size = baseSize * 0.9f,
-                branches = 8,
-                complexity = 1,
-                color = Color(0xFFE3F2FD),
-                alpha = 0.75f,
-                rotation = -22f
-            )
-            
-            // Larger 6-branch with minimal detail
-            drawSnowflake(
-                center = Offset(canvasWidth * 0.25f, canvasHeight * 0.55f),
-                size = baseSize * 1.5f,
-                branches = 6,
-                complexity = 1,
-                color = Color.White,
-                alpha = 0.70f,
-                rotation = 45f
-            )
-            
-            // Small delicate 12-branch snowflake
-            drawSnowflake(
-                center = Offset(canvasWidth * 0.75f, canvasHeight * 0.50f),
-                size = baseSize * 0.7f,
-                branches = 12,
-                complexity = 1,
-                color = Color(0xFFF0F8FF),
-                alpha = 0.65f,
-                rotation = 0f
-            )
-            
-            // Medium complex 6-branch
-            drawSnowflake(
-                center = Offset(canvasWidth * 0.12f, canvasHeight * 0.70f),
-                size = baseSize,
-                branches = 6,
-                complexity = 3,
-                color = Color.White,
-                alpha = 0.80f,
-                rotation = -30f
-            )
+            for (i in 0 until snowflakeCount) {
+                // Deterministic pseudo-random values using index
+                val xRandom = ((i * 37 + 13) % 100) / 100f
+                val yRandom = ((i * 53 + 29) % 100) / 100f
+                val sizeRandom = ((i * 17 + 7) % 100) / 100f
+                val rotRandom = ((i * 41 + 19) % 360)
+                val alphaRandom = ((i * 31 + 11) % 100) / 100f
+                val branchRandom = ((i * 23 + 5) % 3)
+                val complexityRandom = ((i * 19 + 3) % 3)
+                
+                // Position in sky area
+                val x = canvasWidth * (0.02f + 0.96f * xRandom)
+                val y = canvasHeight * (0.02f + 0.76f * yRandom)
+                
+                // Size variation (smaller to larger)
+                val size = baseSize * (0.6f + 1.0f * sizeRandom)
+                
+                // Vary branches (6, 8, or 12)
+                val branches = when (branchRandom) {
+                    0 -> 6
+                    1 -> 8
+                    else -> 12
+                }
+                
+                // Complexity (1-3)
+                val complexity = 1 + complexityRandom
+                
+                // Alpha variation for depth
+                val alpha = 0.50f + 0.35f * alphaRandom
+                
+                // Color variation (white with slight blue tints)
+                val colorVariant = when {
+                    i % 5 == 0 -> Color(0xFFE3F2FD)
+                    i % 7 == 0 -> Color(0xFFF0F8FF)
+                    else -> Color.White
+                }
+                
+                drawSnowflake(
+                    center = Offset(x, y),
+                    size = size,
+                    branches = branches,
+                    complexity = complexity,
+                    color = colorVariant,
+                    alpha = alpha,
+                    rotation = rotRandom.toFloat()
+                )
+            }
         }
     }
 }
