@@ -27,7 +27,9 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.graphics.asAndroidPath
 import news.androiddev.composechristmas.ui.theme.ComposeChristmasTheme
 import kotlin.math.PI
 import kotlin.math.pow
@@ -57,6 +59,27 @@ data class LightState(
     val isOn: Boolean = true,
     val phase: Float = 0f // 0..1 phase offset for animations
 )
+
+// Helper function to draw a drop shadow (oval shape with blur)
+private fun DrawScope.drawDropShadow(
+    center: Offset,
+    width: Float,
+    height: Float,
+    blurRadius: Float = 20f,
+    alpha: Float = 0.3f
+) {
+    // Draw multiple layers for a soft blur effect
+    for (i in 0..3) {
+        val layerAlpha = alpha * (1f - i * 0.2f)
+        val layerWidth = width + i * blurRadius * 0.5f
+        val layerHeight = height + i * blurRadius * 0.3f
+        drawOval(
+            color = Color.Black.copy(alpha = layerAlpha),
+            topLeft = Offset(center.x - layerWidth / 2f, center.y - layerHeight / 2f),
+            size = Size(layerWidth, layerHeight)
+        )
+    }
+}
 
 // Day 15: Snowflake drawing helper with customizable parameters
 private fun DrawScope.drawSnowflake(
@@ -408,10 +431,17 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
         val numLayers = 10
         val treeWidth = canvasWidth * 0.42f
         val treeHeight = canvasHeight * 0.62f
-        // Move tree down to ~38% so it reaches the hill
-        val treeTop = canvasHeight * 0.38f
+        val groundYAtCenter = canvasHeight * 0.81f
         val layerHeight = treeHeight / (numLayers + 1f)
         val layerOverlap = layerHeight * 0.35f
+        
+        // Calculate trunk dimensions first
+        val trunkHeightAboveGround = layerHeight * 1.75f // Updated to match new trunk height
+        
+        // Position tree so bottom foliage layer sits just at/above the trunk top
+        val treeTop = groundYAtCenter - trunkHeightAboveGround - ((numLayers - 1) * (layerHeight - layerOverlap) + layerHeight)
+        val lastLayerTop = treeTop + (numLayers - 1) * (layerHeight - layerOverlap)
+        val lastLayerBottom = lastLayerTop + layerHeight
 
         val deepGreen = Color(0xFF2E7D32)
         val midGreen = Color(0xFF2F7E33)
@@ -490,453 +520,629 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
         // --- 6. Trunk Logic ---
         // Calculate ground level at center (approximate bezier Y at t=0.5)
         // Bezier P0y=0.85, P1y=0.80, P2y=0.80, P3y=0.85 -> Midpoint is ~0.8125
-        val groundYAtCenter = canvasHeight * 0.81f
 
-        // Make trunk thicker and taller
-        val trunkWidth = treeWidth * 0.22f // was 0.14f
-        val trunkLeft = (canvasWidth - trunkWidth) / 2f
+        // Make trunk bigger and taller
+        val trunkWidthTop = treeWidth * 0.24f
+        val trunkWidthBottom = treeWidth * 0.32f
 
-        // Calculate bottom of foliage
-        val lastLayerTop = treeTop + (numLayers - 1) * (layerHeight - layerOverlap)
-        val lastLayerBottom = lastLayerTop + layerHeight
-
-        // Make trunk taller: start higher and end deeper
-        val trunkTop = lastLayerBottom - layerHeight * 1.0f // was 0.5f
-        val trunkBottom = groundYAtCenter + 32f // was +10f
+        // Make trunk half the previous height
+        val trunkTop = lastLayerBottom - layerHeight * 1.75f // Half of 3.5f
+        val trunkBottom = groundYAtCenter + 25f // Half of 50f
 
         // Tree sway animation (gentle rotation around ground center)
         val treeSwayDeg = (sin(2.0 * PI * (treeSwayTime.value + 0.10)) * 1.1).toFloat()
 
+        // --- Tree shadow (below trunk, before trunk and gifts) ---
+        drawDropShadow(
+            center = Offset(centerX, groundYAtCenter + 5f),
+            width = treeWidth * 0.8f,
+            height = treeWidth * 0.25f,
+            blurRadius = 36f, // increased blur
+            alpha = 0.18f // reduced alpha for subtlety
+        )
+
         withTransform({ rotate(treeSwayDeg, pivot = Offset(centerX, groundYAtCenter)) }) {
-            drawRect(
-                color = Color(0xFF5D4037),
-                topLeft = Offset(trunkLeft, trunkTop),
-                size = Size(trunkWidth, trunkBottom - trunkTop)
+            // Draw trunk as trapezoid (wider at bottom)
+            val trunkPath = Path().apply {
+                moveTo(centerX - trunkWidthTop / 2f, trunkTop)
+                lineTo(centerX + trunkWidthTop / 2f, trunkTop)
+                lineTo(centerX + trunkWidthBottom / 2f, trunkBottom)
+                lineTo(centerX - trunkWidthBottom / 2f, trunkBottom)
+                close()
+            }
+            
+            // Main trunk color with gradient
+            drawPath(
+                path = trunkPath,
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        Color(0xFF6D4C41),
+                        Color(0xFF5D4037),
+                        Color(0xFF4E342E)
+                    ),
+                    startY = trunkTop,
+                    endY = trunkBottom
+                )
             )
-
-            // --- Candy canes hanging on the tree ---
-            fun drawCandyCane(center: Offset, height: Float, thickness: Float, rotationDeg: Float) {
-                val hookR = thickness * 2.2f
-                val topY = center.y - height / 2f
-                val path = Path().apply {
-                    // Hook curve to the right, then vertical stem
-                    moveTo(center.x, topY)
-                    quadraticTo(
-                        center.x + hookR * 0.9f,
-                        topY + hookR * 0.2f,
-                        center.x + hookR * 1.4f,
-                        topY + hookR * 0.8f
-                    )
-                    quadraticTo(
-                        center.x + hookR * 1.8f,
-                        topY + hookR * 1.6f,
-                        center.x + hookR * 0.9f,
-                        topY + hookR * 2.2f
-                    )
-                    lineTo(center.x, center.y + height / 2f)
-                }
-
-                withTransform({ rotate(rotationDeg, pivot = center) }) {
-                    // Base white cane body
-                    drawPath(
-                        path = path,
-                        color = Color.White,
-                        style = Stroke(width = thickness, cap = StrokeCap.Round)
-                    )
-                    // Red stripes via dash effect along the cane path
-                    val stripeLen = thickness * 1.6f
-                    drawPath(
-                        path = path,
-                        color = Color(0xFFD32F2F),
-                        style = Stroke(
-                            width = thickness,
-                            cap = StrokeCap.Round,
-                            pathEffect = PathEffect.dashPathEffect(
-                                floatArrayOf(stripeLen, stripeLen),
-                                0f
-                            )
-                        )
-                    )
-                }
-            }
-
-            // Calls moved after foliage to ensure canes render in front of tree
-
-            // --- 7. Tree Foliage Layers with Rounded Scalloped Edges ---
-            val layerBounds = mutableListOf<Pair<Float, Float>>()
-            for (i in 0 until numLayers) {
-                val progressFromTop = i / (numLayers - 1f)
-                val layerTop = treeTop + i * (layerHeight - layerOverlap)
-                val layerBottom = layerTop + layerHeight
-
-                val baseWidth = treeWidth * (0.25f + 0.75f * progressFromTop)
-                val layerWidth = baseWidth
-                val layerLeft = centerX - layerWidth / 2f
-                val layerRight = centerX + layerWidth / 2f
-
-                layerBounds.add(layerLeft to layerRight)
-
-                // Number of scallops increases with layer size
-                val numScallops = 5 + i
-                val scallopsPerSide = numScallops / 2
-
-                // Create rounded, scalloped layer outline
-                val path = Path().apply {
-                    moveTo(centerX, layerTop)
-
-                    // Right side scallops
-                    for (j in 0 until scallopsPerSide) {
-                        val t1 = j / scallopsPerSide.toFloat()
-                        val t2 = (j + 1) / scallopsPerSide.toFloat()
-                        val y1 = layerTop + layerHeight * t1
-                        val y2 = layerTop + layerHeight * t2
-                        val yMid = (y1 + y2) / 2f
-                        val x1 = centerX + (layerWidth / 2f) * t1
-                        val x2 = centerX + (layerWidth / 2f) * t2
-                        val xPeak = x2 + layerWidth * 0.08f
-
-                        quadraticTo(xPeak, yMid, x2, y2)
-                    }
-
-                    // Bottom rounded edge
-                    val bottomY = layerBottom
+            
+            // Wood grain texture lines
+            val grainColor = Color(0xFF3E2723)
+            for (i in 0..3) {
+                val t = (i + 1) / 5f
+                val y = trunkTop + (trunkBottom - trunkTop) * t
+                val widthAtY = trunkWidthTop + (trunkWidthBottom - trunkWidthTop) * t
+                
+                // Curved grain lines
+                val grainPath = Path().apply {
+                    val leftX = centerX - widthAtY * 0.35f
+                    val rightX = centerX + widthAtY * 0.35f
+                    moveTo(leftX, y)
                     cubicTo(
-                        layerRight * 0.8f + centerX * 0.2f, bottomY + layerHeight * 0.1f,
-                        layerLeft * 0.8f + centerX * 0.2f, bottomY + layerHeight * 0.1f,
-                        layerLeft, layerBottom
-                    )
-
-                    // Left side scallops
-                    for (j in scallopsPerSide - 1 downTo 0) {
-                        val t1 = (j + 1) / scallopsPerSide.toFloat()
-                        val t2 = j / scallopsPerSide.toFloat()
-                        val y1 = layerTop + layerHeight * t1
-                        val y2 = layerTop + layerHeight * t2
-                        val yMid = (y1 + y2) / 2f
-                        val x1 = centerX - (layerWidth / 2f) * t1
-                        val x2 = centerX - (layerWidth / 2f) * t2
-                        val xPeak = x1 - layerWidth * 0.08f
-
-                        quadraticTo(xPeak, yMid, x2, y2)
-                    }
-
-                    close()
-                }
-
-                // Draw main layer with gradient
-                drawPath(path = path, brush = foliageBrush)
-
-                // Add darker shadow at bottom of layer
-                val shadowPath = Path().apply {
-                    val shadowHeight = layerHeight * 0.25f
-                    moveTo(layerRight, layerBottom)
-                    cubicTo(
-                        layerRight * 0.8f + centerX * 0.2f, layerBottom + layerHeight * 0.1f,
-                        layerLeft * 0.8f + centerX * 0.2f, layerBottom + layerHeight * 0.1f,
-                        layerLeft, layerBottom
-                    )
-                    lineTo(layerLeft * 0.9f + centerX * 0.1f, layerBottom - shadowHeight)
-                    cubicTo(
-                        centerX, layerBottom - shadowHeight * 0.5f,
-                        centerX, layerBottom - shadowHeight * 0.5f,
-                        layerRight * 0.9f + centerX * 0.1f, layerBottom - shadowHeight
-                    )
-                    close()
-                }
-                drawPath(
-                    path = shadowPath,
-                    color = Color(0xFF1B5E20).copy(alpha = 0.5f)
-                )
-
-                // Subtle lighter highlights (very minimal)
-                if (i % 2 == 0) {
-                    val highlightPath = Path().apply {
-                        val y = layerTop + layerHeight * 0.3f
-                        val hWidth = layerWidth * 0.4f
-                        moveTo(centerX - hWidth * 0.5f, y)
-                        cubicTo(
-                            centerX - hWidth * 0.2f, y - layerHeight * 0.05f,
-                            centerX + hWidth * 0.2f, y - layerHeight * 0.05f,
-                            centerX + hWidth * 0.5f, y
-                        )
-                    }
-                    drawPath(
-                        path = highlightPath,
-                        color = Color(0xFF4CAF50).copy(alpha = 0.25f),
-                        style = Stroke(width = layerHeight * 0.04f, cap = StrokeCap.Round)
-                    )
-                }
-            }
-
-            // --- Candy canes (draw AFTER foliage so they appear in front) ---
-            run {
-                val midX = centerX
-                val leftCaneCenter = Offset(midX - treeWidth * 0.22f, treeTop + layerHeight * 5.4f)
-                val rightCaneCenter = Offset(midX + treeWidth * 0.20f, treeTop + layerHeight * 3.6f)
-                // Smaller size and thinner stripes
-                drawCandyCane(
-                    center = leftCaneCenter,
-                    height = layerHeight * 1.2f,
-                    thickness = treeWidth * 0.035f,
-                    rotationDeg = -16f
-                )
-                drawCandyCane(
-                    center = rightCaneCenter,
-                    height = layerHeight * 1.2f,
-                    thickness = treeWidth * 0.032f,
-                    rotationDeg = 12f
-                )
-            }
-
-            // --- 7a. Fairy Lights Wire (thin, wraps like garland) ---
-            run {
-                // Thin wire width
-                val wireWidth = layerHeight * 0.06f
-                val wirePath = Path()
-                val wraps = listOf(2, 4, 6, 8) // distribute wire across layers
-                var started = false
-                for ((idx, layerIndex) in wraps.withIndex()) {
-                    val t = layerIndex / (numLayers - 1f)
-                    val baseWidth = treeWidth * (0.25f + 0.75f * t)
-                    val wobble = (if (layerIndex % 2 == 0) 1f else -1f) * baseWidth * 0.05f
-                    val layerWidth = baseWidth + wobble
-                    val y =
-                        treeTop + layerIndex * (layerHeight - layerOverlap) + layerHeight * 0.52f
-                    val leftX = centerX - layerWidth * 0.50f
-                    val rightX = centerX + layerWidth * 0.50f
-
-                    val amplitude = layerHeight * 0.18f
-                    val cp1 = Offset(centerX - layerWidth * 0.20f, y - amplitude * 0.8f)
-                    val cp2 = Offset(centerX + layerWidth * 0.20f, y + amplitude * 0.8f)
-
-                    if (!started) {
-                        wirePath.moveTo(leftX, y)
-                        started = true
-                    }
-                    // Wave from left to right
-                    wirePath.cubicTo(cp1.x, cp1.y, cp2.x, cp2.y, rightX, y)
-                    // Descent to next wrap
-                    if (idx != wraps.lastIndex) {
-                        val nextT = wraps[idx + 1] / (numLayers - 1f)
-                        val nextBase = treeWidth * (0.25f + 0.75f * nextT)
-                        val nextWobble =
-                            (if (wraps[idx + 1] % 2 == 0) 1f else -1f) * nextBase * 0.05f
-                        val nextWidth = nextBase + nextWobble
-                        val nextY =
-                            treeTop + wraps[idx + 1] * (layerHeight - layerOverlap) + layerHeight * 0.50f
-                        val nextLeftX = centerX - nextWidth * 0.48f
-                        wirePath.cubicTo(
-                            centerX + layerWidth * 0.08f, y + amplitude * 0.5f,
-                            centerX - nextWidth * 0.16f, nextY - amplitude * 0.5f,
-                            nextLeftX, nextY
-                        )
-                    }
-                }
-
-                // Draw the wire: subtle dark color with slight transparency
-                drawPath(
-                    path = wirePath,
-                    color = Color(0xFF37474F).copy(alpha = 0.85f),
-                    style = Stroke(width = wireWidth, cap = StrokeCap.Round)
-                )
-
-                // Add fairy light bulbs along the wire using LightState
-                val measure = androidx.compose.ui.graphics.PathMeasure()
-                measure.setPath(wirePath, false)
-                val length = measure.length
-
-                val bulbStep = layerHeight * 0.45f // denser spacing for a fuller look
-                val baseRadius = layerHeight * 0.10f
-                val palette = listOf(
-                    Color(0xFFFFF6E5), // warm white
-                    Color(0xFFFF5252), // red
-                    Color(0xFF69F0AE), // green
-                    Color(0xFF40C4FF), // cyan-blue
-                    Color(0xFFFFD740), // amber
-                    Color(0xFFEA80FC)  // violet
-                )
-
-                val lights = buildList {
-                    var dist = bulbStep * 0.5f
-                    var idx = 0
-                    while (dist <= length) {
-                        val pos = measure.getPosition(dist)
-                        val color = palette[idx % palette.size]
-                        val phase = ((idx * 37) % 100) / 100f // deterministic phase offset
-                        val jitter = ((idx * 17 + 7) % 100) / 100f // 0..1
-                        val radius = baseRadius * (0.9f + 0.2f * jitter) // subtle size variance
-                        add(
-                            LightState(
-                                position = pos,
-                                color = color,
-                                radius = radius,
-                                isOn = true,
-                                phase = phase
-                            )
-                        )
-                        dist += bulbStep
-                        idx++
-                    }
-                }
-
-                // Render bulbs (static for now; LightState enables future animation)
-                lights.forEach { light ->
-                    // Twinkle factor: 0.0..1.0 based on shared time and per-light phase
-                    val sparkle =
-                        ((sin(2.0 * PI * (twinkleTime.value + light.phase)) + 1.0) * 0.5).toFloat()
-                    val onFactor = if (light.isOn) 1f else 0.15f
-                    val factor = (0.45f + 0.55f * sparkle) * onFactor
-
-                    val glowRadius = light.radius * (2.0f + 0.6f * sparkle)
-                    // Soft outer glow
-                    drawCircle(
-                        color = light.color.copy(alpha = 0.28f * factor),
-                        radius = glowRadius,
-                        center = light.position
-                    )
-                    drawCircle(
-                        color = light.color.copy(alpha = 0.20f * factor),
-                        radius = glowRadius * 0.65f,
-                        center = light.position
-                    )
-                    // Bulb core
-                    drawCircle(
-                        color = light.color.copy(alpha = 0.90f * factor),
-                        radius = light.radius,
-                        center = light.position
-                    )
-                    // Tiny white spec highlight
-                    drawCircle(
-                        color = Color.White.copy(alpha = 0.85f * factor),
-                        radius = light.radius * 0.18f,
-                        center = Offset(
-                            light.position.x - light.radius * 0.25f,
-                            light.position.y - light.radius * 0.25f
-                        )
-                    )
-                }
-            }
-
-            // --- 7b. Garland (tinsel wrapping with bezier path and PathMeasure) ---
-            run {
-                // Size unit for garland elements (similar to ornamentRadius but scoped here)
-                val garlandUnit = layerHeight * 0.14f
-
-                // Build a wavy garland that wraps around several layers of the tree
-                val garlandPath = Path()
-                val wraps = listOf(1, 3, 5, 7) // layers to anchor garland waves
-                var started = false
-                for ((idx, layerIndex) in wraps.withIndex()) {
-                    val t = layerIndex / (numLayers - 1f)
-                    val baseWidth = treeWidth * (0.25f + 0.75f * t)
-                    val wobble = (if (layerIndex % 2 == 0) 1f else -1f) * baseWidth * 0.06f
-                    val layerWidth = baseWidth + wobble
-                    val y =
-                        treeTop + layerIndex * (layerHeight - layerOverlap) + layerHeight * 0.55f
-                    val leftX = centerX - layerWidth * 0.48f
-                    val rightX = centerX + layerWidth * 0.48f
-
-                    val amplitude = layerHeight * 0.30f
-                    val cp1 = Offset(centerX - layerWidth * 0.18f, y - amplitude * 0.8f)
-                    val cp2 = Offset(centerX + layerWidth * 0.18f, y + amplitude * 0.8f)
-
-                    if (!started) {
-                        garlandPath.moveTo(leftX, y)
-                        started = true
-                    }
-                    // Wave from left to right
-                    garlandPath.cubicTo(
-                        cp1.x, cp1.y,
-                        cp2.x, cp2.y,
+                        centerX - widthAtY * 0.15f, y - layerHeight * 0.15f,
+                        centerX + widthAtY * 0.15f, y + layerHeight * 0.15f,
                         rightX, y
                     )
-                    // Small descent between wraps to simulate vertical progression
-                    if (idx != wraps.lastIndex) {
-                        val nextT = wraps[idx + 1] / (numLayers - 1f)
-                        val nextBase = treeWidth * (0.25f + 0.75f * nextT)
-                        val nextWobble =
-                            (if (wraps[idx + 1] % 2 == 0) 1f else -1f) * nextBase * 0.06f
-                        val nextWidth = nextBase + nextWobble
-                        val nextY =
-                            treeTop + wraps[idx + 1] * (layerHeight - layerOverlap) + layerHeight * 0.45f
-                        val nextLeftX = centerX - nextWidth * 0.45f
-                        // Connect downwards with a gentle curve back to the left edge
-                        garlandPath.cubicTo(
-                            centerX + layerWidth * 0.10f, y + amplitude * 0.6f,
-                            centerX - nextWidth * 0.20f, nextY - amplitude * 0.6f,
-                            nextLeftX, nextY
+                }
+                drawPath(
+                    path = grainPath,
+                    color = grainColor.copy(alpha = 0.3f),
+                    style = Stroke(width = trunkWidthTop * 0.03f, cap = StrokeCap.Round)
+                )
+            }
+            
+            // Add some knots/details
+            drawCircle(
+                color = grainColor.copy(alpha = 0.4f),
+                radius = trunkWidthTop * 0.08f,
+                center = Offset(centerX - trunkWidthTop * 0.2f, trunkTop + (trunkBottom - trunkTop) * 0.4f)
+            )
+            
+            // Blending effect at trunk base
+            val blendRadius = trunkWidthBottom * 0.6f
+            val blendCenter = Offset(centerX, trunkBottom - blendRadius * 0.2f)
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(Color.White.copy(alpha = 0.55f), Color(0xFFE0F7FA).copy(alpha = 0.35f), Color(0xFF5D4037).copy(alpha = 0.0f)),
+                    center = blendCenter,
+                    radius = blendRadius
+                ),
+                radius = blendRadius,
+                center = blendCenter
+            )
+        }
+
+        // --- Candy canes hanging on the tree ---
+        fun drawCandyCane(center: Offset, height: Float, thickness: Float, rotationDeg: Float) {
+            val hookR = thickness * 2.2f
+            val topY = center.y - height / 2f
+            val path = Path().apply {
+                // Hook curve to the right, then vertical stem
+                moveTo(center.x, topY)
+                quadraticTo(
+                    center.x + hookR * 0.9f,
+                    topY + hookR * 0.2f,
+                    center.x + hookR * 1.4f,
+                    topY + hookR * 0.8f
+                )
+                quadraticTo(
+                    center.x + hookR * 1.8f,
+                    topY + hookR * 1.6f,
+                    center.x + hookR * 0.9f,
+                    topY + hookR * 2.2f
+                )
+                lineTo(center.x, center.y + height / 2f)
+            }
+
+            withTransform({ rotate(rotationDeg, pivot = center) }) {
+                // Base white cane body
+                drawPath(
+                    path = path,
+                    color = Color.White,
+                    style = Stroke(width = thickness, cap = StrokeCap.Round)
+                )
+                // Red stripes via dash effect along the cane path
+                val stripeLen = thickness * 1.6f
+                drawPath(
+                    path = path,
+                    color = Color(0xFFD32F2F),
+                    style = Stroke(
+                        width = thickness,
+                        cap = StrokeCap.Round,
+                        pathEffect = PathEffect.dashPathEffect(
+                            floatArrayOf(stripeLen, stripeLen),
+                            0f
                         )
-                    }
+                    )
+                )
+            }
+        }
+
+        // --- 7. Tree Foliage Layers with Rounded Scalloped Edges ---
+        val layerBounds = mutableListOf<Pair<Float, Float>>()
+        for (i in 0 until numLayers) {
+            val progressFromTop = i / (numLayers - 1f)
+            val layerTop = treeTop + i * (layerHeight - layerOverlap)
+            val layerBottom = layerTop + layerHeight
+
+            val baseWidth = treeWidth * (0.25f + 0.75f * progressFromTop)
+            val layerWidth = baseWidth
+            val layerLeft = centerX - layerWidth / 2f
+            val layerRight = centerX + layerWidth / 2f
+
+            layerBounds.add(layerLeft to layerRight)
+
+            // Number of scallops increases with layer size
+            val numScallops = 5 + i
+            val scallopsPerSide = numScallops / 2
+
+            // Create rounded, scalloped layer outline
+            val path = Path().apply {
+                moveTo(centerX, layerTop)
+
+                // Right side scallops
+                for (j in 0 until scallopsPerSide) {
+                    val t1 = j / scallopsPerSide.toFloat()
+                    val t2 = (j + 1) / scallopsPerSide.toFloat()
+                    val y1 = layerTop + layerHeight * t1
+                    val y2 = layerTop + layerHeight * t2
+                    val yMid = (y1 + y2) / 2f
+                    val x1 = centerX + (layerWidth / 2f) * t1
+                    val x2 = centerX + (layerWidth / 2f) * t2
+                    val xPeak = x2 + layerWidth * 0.08f
+
+                    quadraticTo(xPeak, yMid, x2, y2)
                 }
 
-                // Tinsel style: stroke-like dots and small sparkles along the path using PathMeasure
-                val measure = androidx.compose.ui.graphics.PathMeasure()
-                measure.setPath(garlandPath, false)
-                val length = measure.length
+                // Bottom rounded edge
+                val bottomY = layerBottom
+                cubicTo(
+                    layerRight * 0.8f + centerX * 0.2f, bottomY + layerHeight * 0.1f,
+                    layerLeft * 0.8f + centerX * 0.2f, bottomY + layerHeight * 0.1f,
+                    layerLeft, layerBottom
+                )
 
-                // Draw sampled dots
-                val step = garlandUnit * 0.80f
-                var dist = 0f
-                while (dist <= length) {
-                    val pos = measure.getPosition(dist)
-                    val sparkleColor = Color(0xFFE0F7FA)
-                    // Base tinsel dot
-                    drawCircle(
-                        color = sparkleColor.copy(alpha = 0.75f),
-                        radius = garlandUnit * 0.10f,
-                        center = pos
-                    )
-                    // Tiny star-like cross
-                    val crossLen = garlandUnit * 0.16f
-                    drawLine(
-                        color = sparkleColor.copy(alpha = 0.65f),
-                        start = Offset(pos.x - crossLen, pos.y),
-                        end = Offset(pos.x + crossLen, pos.y)
-                    )
-                    drawLine(
-                        color = sparkleColor.copy(alpha = 0.65f),
-                        start = Offset(pos.x, pos.y - crossLen),
-                        end = Offset(pos.x, pos.y + crossLen)
-                    )
-                    dist += step
+                // Left side scallops
+                for (j in scallopsPerSide - 1 downTo 0) {
+                    val t1 = (j + 1) / scallopsPerSide.toFloat()
+                    val t2 = j / scallopsPerSide.toFloat()
+                    val y1 = layerTop + layerHeight * t1
+                    val y2 = layerTop + layerHeight * t2
+                    val yMid = (y1 + y2) / 2f
+                    val x1 = centerX - (layerWidth / 2f) * t1
+                    val x2 = centerX - (layerWidth / 2f) * t2
+                    val xPeak = x1 - layerWidth * 0.08f
+
+                    quadraticTo(xPeak, yMid, x2, y2)
                 }
 
-                // A soft metallic ribbon underlay to suggest a continuous strand
-                val ribbonColor = Color(0xFFB0BEC5)
-                // Approximate stroke by drawing many short segments along the path
-                val segment = garlandUnit * 0.55f
-                var d2 = 0f
-                while (d2 < length - segment) {
-                    val p0 = measure.getPosition(d2)
-                    val p1 = measure.getPosition(d2 + segment)
-                    drawLine(
-                        color = ribbonColor.copy(alpha = 0.35f),
-                        start = p0,
-                        end = p1,
-                        strokeWidth = garlandUnit * 0.10f
+                close()
+            }
+
+            // Draw main layer with gradient
+            drawPath(path = path, brush = foliageBrush)
+
+            // Add darker shadow at bottom of layer
+            val shadowPath = Path().apply {
+                val shadowHeight = layerHeight * 0.25f
+                moveTo(layerRight, layerBottom)
+                cubicTo(
+                    layerRight * 0.8f + centerX * 0.2f, layerBottom + layerHeight * 0.1f,
+                    layerLeft * 0.8f + centerX * 0.2f, layerBottom + layerHeight * 0.1f,
+                    layerLeft, layerBottom
+                )
+                lineTo(layerLeft * 0.9f + centerX * 0.1f, layerBottom - shadowHeight)
+                cubicTo(
+                    centerX, layerBottom - shadowHeight * 0.5f,
+                    centerX, layerBottom - shadowHeight * 0.5f,
+                    layerRight * 0.9f + centerX * 0.1f, layerBottom - shadowHeight
+                )
+                close()
+            }
+            drawPath(
+                path = shadowPath,
+                color = Color(0xFF1B5E20).copy(alpha = 0.5f)
+            )
+
+            // Subtle lighter highlights (very minimal)
+            if (i % 2 == 0) {
+                val highlightPath = Path().apply {
+                    val y = layerTop + layerHeight * 0.3f
+                    val hWidth = layerWidth * 0.4f
+                    moveTo(centerX - hWidth * 0.5f, y)
+                    cubicTo(
+                        centerX - hWidth * 0.2f, y - layerHeight * 0.05f,
+                        centerX + hWidth * 0.2f, y - layerHeight * 0.05f,
+                        centerX + hWidth * 0.5f, y
                     )
-                    d2 += segment
+                }
+                drawPath(
+                    path = highlightPath,
+                    color = Color(0xFF4CAF50).copy(alpha = 0.25f),
+                    style = Stroke(width = layerHeight * 0.04f, cap = StrokeCap.Round)
+                )
+            }
+        }
+
+        // --- Candy canes (draw AFTER foliage so they appear in front) ---
+        run {
+            val midX = centerX
+            val leftCaneCenter = Offset(midX - treeWidth * 0.22f, treeTop + layerHeight * 5.4f)
+            val rightCaneCenter = Offset(midX + treeWidth * 0.20f, treeTop + layerHeight * 3.6f)
+            // Smaller size and thinner stripes
+            drawCandyCane(
+                center = leftCaneCenter,
+                height = layerHeight * 1.2f,
+                thickness = treeWidth * 0.035f,
+                rotationDeg = -16f
+            )
+            drawCandyCane(
+                center = rightCaneCenter,
+                height = layerHeight * 1.2f,
+                thickness = treeWidth * 0.032f,
+                rotationDeg = 12f
+            )
+        }
+
+        // --- 7a. Fairy Lights Wire (thin, wraps like garland) ---
+        run {
+            // Thin wire width
+            val wireWidth = layerHeight * 0.06f
+            val wirePath = Path()
+            val wraps = listOf(2, 4, 6, 8) // distribute wire across layers
+            var started = false
+            for ((idx, layerIndex) in wraps.withIndex()) {
+                val t = layerIndex / (numLayers - 1f)
+                val baseWidth = treeWidth * (0.25f + 0.75f * t)
+                val wobble = (if (layerIndex % 2 == 0) 1f else -1f) * baseWidth * 0.05f
+                val layerWidth = baseWidth + wobble
+                val y =
+                    treeTop + layerIndex * (layerHeight - layerOverlap) + layerHeight * 0.52f
+                val leftX = centerX - layerWidth * 0.50f
+                val rightX = centerX + layerWidth * 0.50f
+
+                val amplitude = layerHeight * 0.18f
+                val cp1 = Offset(centerX - layerWidth * 0.20f, y - amplitude * 0.8f)
+                val cp2 = Offset(centerX + layerWidth * 0.20f, y + amplitude * 0.8f)
+
+                if (!started) {
+                    wirePath.moveTo(leftX, y)
+                    started = true
+                }
+                // Wave from left to right
+                wirePath.cubicTo(cp1.x, cp1.y, cp2.x, cp2.y, rightX, y)
+                // Descent to next wrap
+                if (idx != wraps.lastIndex) {
+                    val nextT = wraps[idx + 1] / (numLayers - 1f)
+                    val nextBase = treeWidth * (0.25f + 0.75f * nextT)
+                    val nextWobble =
+                        (if (wraps[idx + 1] % 2 == 0) 1f else -1f) * nextBase * 0.05f
+                    val nextWidth = nextBase + nextWobble
+                    val nextY =
+                        treeTop + wraps[idx + 1] * (layerHeight - layerOverlap) + layerHeight * 0.50f
+                    val nextLeftX = centerX - nextWidth * 0.48f
+                    wirePath.cubicTo(
+                        centerX + layerWidth * 0.08f, y + amplitude * 0.5f,
+                        centerX - nextWidth * 0.16f, nextY - amplitude * 0.5f,
+                        nextLeftX, nextY
+                    )
                 }
             }
 
-            // --- 8. Ornaments on Tree --- (REMOVED)
+            // Draw the wire: subtle dark color with slight transparency
+            drawPath(
+                path = wirePath,
+                color = Color(0xFF37474F).copy(alpha = 0.85f),
+                style = Stroke(width = wireWidth, cap = StrokeCap.Round)
+            )
 
-            // End tree sway transform
+            // Add fairy light bulbs along the wire using LightState
+            val measure = androidx.compose.ui.graphics.PathMeasure()
+            measure.setPath(wirePath, false)
+            val length = measure.length
+
+            val bulbStep = layerHeight * 0.45f // denser spacing for a fuller look
+            val baseRadius = layerHeight * 0.10f
+            val palette = listOf(
+                Color(0xFFFFF6E5), // warm white
+                Color(0xFFFF5252), // red
+                Color(0xFF69F0AE), // green
+                Color(0xFF40C4FF), // cyan-blue
+                Color(0xFFFFD740), // amber
+                Color(0xFFEA80FC)  // violet
+            )
+
+            val lights = buildList {
+                var dist = bulbStep * 0.5f
+                var idx = 0
+                while (dist <= length) {
+                    val pos = measure.getPosition(dist)
+                    val color = palette[idx % palette.size]
+                    val phase = ((idx * 37) % 100) / 100f // deterministic phase offset
+                    val jitter = ((idx * 17 + 7) % 100) / 100f // 0..1
+                    val radius = baseRadius * (0.9f + 0.2f * jitter) // subtle size variance
+                    add(
+                        LightState(
+                            position = pos,
+                            color = color,
+                            radius = radius,
+                            isOn = true,
+                            phase = phase
+                        )
+                    )
+                    dist += bulbStep
+                    idx++
+                }
+            }
+
+            // Render bulbs (static for now; LightState enables future animation)
+            lights.forEach { light ->
+                // Twinkle factor: 0.0..1.0 based on shared time and per-light phase
+                val sparkle =
+                    ((sin(2.0 * PI * (twinkleTime.value + light.phase)) + 1.0) * 0.5).toFloat()
+                val onFactor = if (light.isOn) 1f else 0.15f
+                val factor = (0.45f + 0.55f * sparkle) * onFactor
+
+                val glowRadius = light.radius * (2.0f + 0.6f * sparkle)
+                // Soft outer glow
+                drawCircle(
+                    color = light.color.copy(alpha = 0.28f * factor),
+                    radius = glowRadius,
+                    center = light.position
+                )
+                drawCircle(
+                    color = light.color.copy(alpha = 0.20f * factor),
+                    radius = glowRadius * 0.65f,
+                    center = light.position
+                )
+                // Bulb core
+                drawCircle(
+                    color = light.color.copy(alpha = 0.90f * factor),
+                    radius = light.radius,
+                    center = light.position
+                )
+                // Tiny white spec highlight
+                drawCircle(
+                    color = Color.White.copy(alpha = 0.85f * factor),
+                    radius = light.radius * 0.18f,
+                    center = Offset(
+                        light.position.x - light.radius * 0.25f,
+                        light.position.y - light.radius * 0.25f
+                    )
+                )
+            }
+        }
+
+        // --- 7b. Garland (tinsel wrapping with bezier path and PathMeasure) ---
+        run {
+            // Size unit for garland elements (similar to ornamentRadius but scoped here)
+            val garlandUnit = layerHeight * 0.14f
+
+            // Build a wavy garland that wraps around several layers of the tree
+            val garlandPath = Path()
+            val wraps = listOf(1, 3, 5, 7) // layers to anchor garland waves
+            var started = false
+            for ((idx, layerIndex) in wraps.withIndex()) {
+                val t = layerIndex / (numLayers - 1f)
+                val baseWidth = treeWidth * (0.25f + 0.75f * t)
+                val wobble = (if (layerIndex % 2 == 0) 1f else -1f) * baseWidth * 0.06f
+                val layerWidth = baseWidth + wobble
+                val y =
+                    treeTop + layerIndex * (layerHeight - layerOverlap) + layerHeight * 0.55f
+                val leftX = centerX - layerWidth * 0.48f
+                val rightX = centerX + layerWidth * 0.48f
+
+                val amplitude = layerHeight * 0.30f
+                val cp1 = Offset(centerX - layerWidth * 0.18f, y - amplitude * 0.8f)
+                val cp2 = Offset(centerX + layerWidth * 0.18f, y + amplitude * 0.8f)
+
+                if (!started) {
+                    garlandPath.moveTo(leftX, y)
+                    started = true
+                }
+                // Wave from left to right
+                garlandPath.cubicTo(
+                    cp1.x, cp1.y,
+                    cp2.x, cp2.y,
+                    rightX, y
+                )
+                // Small descent between wraps to simulate vertical progression
+                if (idx != wraps.lastIndex) {
+                    val nextT = wraps[idx + 1] / (numLayers - 1f)
+                    val nextBase = treeWidth * (0.25f + 0.75f * nextT)
+                    val nextWobble =
+                        (if (wraps[idx + 1] % 2 == 0) 1f else -1f) * nextBase * 0.06f
+                    val nextWidth = nextBase + nextWobble
+                    val nextY =
+                        treeTop + wraps[idx + 1] * (layerHeight - layerOverlap) + layerHeight * 0.45f
+                    val nextLeftX = centerX - nextWidth * 0.45f
+                    // Connect downwards with a gentle curve back to the left edge
+                    garlandPath.cubicTo(
+                        centerX + layerWidth * 0.10f, y + amplitude * 0.6f,
+                        centerX - nextWidth * 0.20f, nextY - amplitude * 0.6f,
+                        nextLeftX, nextY
+                    )
+                }
+            }
+
+            // Tinsel style: stroke-like dots and small sparkles along the path using PathMeasure
+            val measure = androidx.compose.ui.graphics.PathMeasure()
+            measure.setPath(garlandPath, false)
+            val length = measure.length
+
+            // Draw sampled dots
+            val step = garlandUnit * 0.80f
+            var dist = 0f
+            while (dist <= length) {
+                val pos = measure.getPosition(dist)
+                val sparkleColor = Color(0xFFE0F7FA)
+                // Base tinsel dot
+                drawCircle(
+                    color = sparkleColor.copy(alpha = 0.75f),
+                    radius = garlandUnit * 0.10f,
+                    center = pos
+                )
+                // Tiny star-like cross
+                val crossLen = garlandUnit * 0.16f
+                drawLine(
+                    color = sparkleColor.copy(alpha = 0.65f),
+                    start = Offset(pos.x - crossLen, pos.y),
+                    end = Offset(pos.x + crossLen, pos.y)
+                )
+                drawLine(
+                    color = sparkleColor.copy(alpha = 0.65f),
+                    start = Offset(pos.x, pos.y - crossLen),
+                    end = Offset(pos.x, pos.y + crossLen)
+                )
+                dist += step
+            }
+
+            // A soft metallic ribbon underlay to suggest a continuous strand
+            val ribbonColor = Color(0xFFB0BEC5)
+            // Approximate stroke by drawing many short segments along the path
+            val segment = garlandUnit * 0.55f
+            var d2 = 0f
+            while (d2 < length - segment) {
+                val p0 = measure.getPosition(d2)
+                val p1 = measure.getPosition(d2 + segment)
+                drawLine(
+                    color = ribbonColor.copy(alpha = 0.35f),
+                    start = p0,
+                    end = p1,
+                    strokeWidth = garlandUnit * 0.10f
+                )
+                d2 += segment
+            }
+        }
+
+        // --- Festive Greeting at Top ---
+        run {
+            val greeting = "Merry Christmas!"
+            val paint = android.graphics.Paint().apply {
+                color = android.graphics.Color.WHITE
+                textSize = size.width * 0.08f
+                isAntiAlias = true
+                textAlign = android.graphics.Paint.Align.CENTER
+                setShadowLayer(8f, 0f, 4f, android.graphics.Color.argb(120, 0, 0, 0))
+                typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT_BOLD, android.graphics.Typeface.BOLD)
+            }
+            val x = size.width / 2f
+            val y = size.height * 0.10f
+            
+            // --- Draw Christmas hat BEFORE text so it appears visible ---
+            val cIndex = greeting.indexOf('C')
+            if (cIndex != -1) {
+                val textUpToC = greeting.substring(0, cIndex)
+                val textWidthUpToC = paint.measureText(textUpToC)
+                val cWidth = paint.measureText("C")
+                // Since textAlign is CENTER, x is the center of the whole text
+                val greetingWidth = paint.measureText(greeting)
+                val cCenterX = x - greetingWidth / 2f + textWidthUpToC + cWidth / 2f
+                val textTopY = y - paint.textSize * 0.75f // top of text
+                // Hat size relative to font size
+                val hatHeight = paint.textSize * 1.0f
+                val hatWidth = hatHeight * 0.95f
+                val hatBaseY = textTopY - hatHeight * 0.05f
+                
+                drawContext.canvas.nativeCanvas.apply {
+                    // Draw curved, floppy hat body
+                    val hatPath = Path().apply {
+                        moveTo(cCenterX - hatWidth * 0.45f, hatBaseY)
+                        // Left side curve up
+                        quadraticBezierTo(
+                            cCenterX - hatWidth * 0.35f, hatBaseY - hatHeight * 0.5f,
+                            cCenterX - hatWidth * 0.15f, hatBaseY - hatHeight * 0.75f
+                        )
+                        // Top curve leaning right
+                        quadraticBezierTo(
+                            cCenterX + hatWidth * 0.05f, hatBaseY - hatHeight * 0.95f,
+                            cCenterX + hatWidth * 0.35f, hatBaseY - hatHeight * 0.65f
+                        )
+                        // Right side curve down
+                        quadraticBezierTo(
+                            cCenterX + hatWidth * 0.45f, hatBaseY - hatHeight * 0.5f,
+                            cCenterX + hatWidth * 0.45f, hatBaseY
+                        )
+                        close()
+                    }
+                    
+                    // Draw shadow
+                    val shadowPaint = android.graphics.Paint().apply {
+                        color = android.graphics.Color.rgb(180, 30, 30)
+                        isAntiAlias = true
+                        style = android.graphics.Paint.Style.FILL
+                    }
+                    // Draw main hat
+                    val hatPaint = android.graphics.Paint().apply {
+                        color = android.graphics.Color.rgb(220, 38, 38) // red
+                        isAntiAlias = true
+                        style = android.graphics.Paint.Style.FILL
+                        setShadowLayer(8f, 2f, 3f, android.graphics.Color.argb(100, 0, 0, 0))
+                    }
+                    drawPath(hatPath.asAndroidPath(), hatPaint)
+                    
+                    // Draw highlight on left side
+                    val highlightPaint = android.graphics.Paint().apply {
+                        color = android.graphics.Color.rgb(240, 80, 80)
+                        isAntiAlias = true
+                        style = android.graphics.Paint.Style.FILL
+                        alpha = 120
+                    }
+                    val highlightPath = Path().apply {
+                        moveTo(cCenterX - hatWidth * 0.40f, hatBaseY - hatHeight * 0.05f)
+                        quadraticBezierTo(
+                            cCenterX - hatWidth * 0.30f, hatBaseY - hatHeight * 0.45f,
+                            cCenterX - hatWidth * 0.15f, hatBaseY - hatHeight * 0.70f
+                        )
+                        lineTo(cCenterX - hatWidth * 0.20f, hatBaseY - hatHeight * 0.65f)
+                        quadraticBezierTo(
+                            cCenterX - hatWidth * 0.32f, hatBaseY - hatHeight * 0.40f,
+                            cCenterX - hatWidth * 0.42f, hatBaseY - hatHeight * 0.02f
+                        )
+                        close()
+                    }
+                    drawPath(highlightPath.asAndroidPath(), highlightPaint)
+                    
+                    // Draw white fur brim (thicker, fluffy)
+                    val brimPaint = android.graphics.Paint().apply {
+                        color = android.graphics.Color.WHITE
+                        isAntiAlias = true
+                        style = android.graphics.Paint.Style.FILL
+                        setShadowLayer(6f, 0f, 2f, android.graphics.Color.argb(60, 0, 0, 0))
+                    }
+                    val brimHeight = hatHeight * 0.28f
+                    val brimRect = android.graphics.RectF(
+                        cCenterX - hatWidth * 0.55f,
+                        hatBaseY - brimHeight / 2f,
+                        cCenterX + hatWidth * 0.55f,
+                        hatBaseY + brimHeight / 2f
+                    )
+                    drawOval(brimRect, brimPaint)
+                    
+                    // Draw white pom-pom at the tip
+                    val pomRadius = hatHeight * 0.22f
+                    drawCircle(
+                        cCenterX + hatWidth * 0.32f,
+                        hatBaseY - hatHeight * 0.68f,
+                        pomRadius,
+                        brimPaint
+                    )
+                }
+            }
+            
+            // Draw text AFTER hat so text appears in front
+            drawContext.canvas.nativeCanvas.drawText(greeting, x, y, paint)
         }
 
         // --- 9. Gift Boxes with Ribbons and Bows ---
         run {
-            // Helper to compute ground Y at any X using the hill's cubic bezier
             fun groundYAt(x: Float): Float {
                 val W = canvasWidth
                 val H = canvasHeight
                 val t = (x / W).coerceIn(0f, 1f)
-                // Bezier points
                 val P0 = Offset(0f, H * 0.85f)
                 val P1 = Offset(W * 0.3f, H * 0.80f)
                 val P2 = Offset(W * 0.7f, H * 0.80f)
                 val P3 = Offset(W, H * 0.85f)
-                // Cubic Bezier formula
                 val y = (1 - t).pow(3) * P0.y +
                         3 * (1 - t).pow(2) * t * P1.y +
                         3 * (1 - t) * t * t * P2.y +
@@ -944,140 +1150,656 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
                 return y
             }
             // Gift 1: Red box on the left
-            val gift1X = centerX - treeWidth * 0.28f
-            val gift1Width = treeWidth * 0.18f
-            val gift1Height = gift1Width * 0.95f
+            val gift1X = centerX - treeWidth * 0.32f // shift left for larger size
+            val gift1Width = treeWidth * 0.22f // was 0.18f
+            val gift1Height = gift1Width * 1.05f // was 0.95f
             val gift1Color = Color(0xFFD32F2F)
             val gift1Bottom = groundYAt(gift1X + gift1Width / 2f)
             val gift1Top = gift1Bottom - gift1Height
-            // Box
+
+            // Shadow for gift 1
+            drawDropShadow(
+                center = Offset(gift1X + gift1Width / 2f, gift1Bottom + 3f),
+                width = gift1Width * 1.1f,
+                height = gift1Width * 0.3f,
+                blurRadius = 28f,
+                alpha = 0.15f
+            )
+
+            // 3D Box - Front face with shading
             drawRect(
-                color = gift1Color,
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        Color(0xFFE53935),
+                        Color(0xFFD32F2F),
+                        Color(0xFFC62828)
+                    )
+                ),
                 topLeft = Offset(gift1X, gift1Top),
                 size = Size(gift1Width, gift1Height)
             )
-            // Vertical ribbon
-            val ribbonWidth = gift1Width * 0.15f
+            
+            // 3D Box - Top face (perspective) - More visible
+            val topDepth = gift1Width * 0.35f
+            drawPath(
+                path = Path().apply {
+                    moveTo(gift1X, gift1Top)
+                    lineTo(gift1X + topDepth * 0.7f, gift1Top - topDepth * 0.5f)
+                    lineTo(gift1X + gift1Width + topDepth * 0.7f, gift1Top - topDepth * 0.5f)
+                    lineTo(gift1X + gift1Width, gift1Top)
+                    close()
+                },
+                brush = Brush.linearGradient(
+                    colors = listOf(
+                        Color(0xFFEF5350),
+                        Color(0xFFE57373),
+                        Color(0xFFEF5350)
+                    ),
+                    start = Offset(gift1X, gift1Top - topDepth * 0.5f),
+                    end = Offset(gift1X + gift1Width, gift1Top - topDepth * 0.5f)
+                )
+            )
+            
+            // 3D Box - Right side face (darker)
+            drawPath(
+                path = Path().apply {
+                    moveTo(gift1X + gift1Width, gift1Top)
+                    lineTo(gift1X + gift1Width + topDepth * 0.7f, gift1Top - topDepth * 0.5f)
+                    lineTo(gift1X + gift1Width + topDepth * 0.7f, gift1Bottom - topDepth * 0.5f)
+                    lineTo(gift1X + gift1Width, gift1Bottom)
+                    close()
+                },
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        Color(0xFF9A0007),
+                        Color(0xFF7F0000),
+                        Color(0xFF6A0000)
+                    )
+                )
+            )
+
+            // Vertical ribbon with shading
+            val ribbonWidth = gift1Width * 0.18f
             drawRect(
-                color = Color(0xFFFFD700),
+                brush = Brush.horizontalGradient(
+                    colors = listOf(
+                        Color(0xFFFFB300),
+                        Color(0xFFFFC107),
+                        Color(0xFFFFD54F),
+                        Color(0xFFFFC107),
+                        Color(0xFFFFB300)
+                    )
+                ),
                 topLeft = Offset(gift1X + gift1Width / 2f - ribbonWidth / 2f, gift1Top),
                 size = Size(ribbonWidth, gift1Height)
             )
-            // Horizontal ribbon
+            // Ribbon on top face
+            drawPath(
+                path = Path().apply {
+                    val ribbonX = gift1X + gift1Width / 2f - ribbonWidth / 2f
+                    moveTo(ribbonX, gift1Top)
+                    lineTo(ribbonX + topDepth * 0.7f, gift1Top - topDepth * 0.5f)
+                    lineTo(ribbonX + ribbonWidth + topDepth * 0.7f, gift1Top - topDepth * 0.5f)
+                    lineTo(ribbonX + ribbonWidth, gift1Top)
+                    close()
+                },
+                brush = Brush.linearGradient(
+                    colors = listOf(
+                        Color(0xFFFFD54F),
+                        Color(0xFFFFC107)
+                    )
+                )
+            )
+            // Ribbon on right face
+            drawPath(
+                path = Path().apply {
+                    val ribbonX = gift1X + gift1Width / 2f - ribbonWidth / 2f
+                    moveTo(ribbonX + ribbonWidth, gift1Top)
+                    lineTo(ribbonX + ribbonWidth + topDepth * 0.7f, gift1Top - topDepth * 0.5f)
+                    lineTo(ribbonX + ribbonWidth + topDepth * 0.7f, gift1Bottom - topDepth * 0.5f)
+                    lineTo(ribbonX + ribbonWidth, gift1Bottom)
+                    close()
+                },
+                brush = Brush.linearGradient(
+                    colors = listOf(
+                        Color(0xFFFFB300),
+                        Color(0xFFFF8F00)
+                    )
+                )
+            )
+
+            // Horizontal ribbon on front face with shading
             drawRect(
-                color = Color(0xFFFFD700),
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        Color(0xFFFFB300),
+                        Color(0xFFFFC107),
+                        Color(0xFFFFD54F),
+                        Color(0xFFFFC107),
+                        Color(0xFFFFB300)
+                    )
+                ),
                 topLeft = Offset(gift1X, gift1Top + gift1Height / 2f - ribbonWidth / 2f),
                 size = Size(gift1Width, ribbonWidth)
             )
-            // Bow (two loops and center knot)
-            val bowCenterX = gift1X + gift1Width / 2f
-            val bowCenterY = gift1Top + gift1Height / 2f
-            val bowSize = ribbonWidth * 2.2f
-            // Left loop
-            drawCircle(
-                color = Color(0xFFFFD700),
-                radius = bowSize * 0.5f,
-                center = Offset(bowCenterX - bowSize * 0.6f, bowCenterY)
+            // Horizontal ribbon on top face
+            drawPath(
+                path = Path().apply {
+                    val ribbonY = gift1Top + gift1Height / 2f - ribbonWidth / 2f
+                    moveTo(gift1X, gift1Top)
+                    lineTo(gift1X + topDepth * 0.7f, gift1Top - topDepth * 0.5f)
+                    lineTo(gift1X + gift1Width + topDepth * 0.7f, gift1Top - topDepth * 0.5f)
+                    lineTo(gift1X + gift1Width, gift1Top)
+                    close()
+                },
+                brush = Brush.linearGradient(
+                    colors = listOf(
+                        Color(0xFFFFD54F),
+                        Color(0xFFFFC107)
+                    )
+                )
             )
-            // Right loop
-            drawCircle(
-                color = Color(0xFFFFD700),
-                radius = bowSize * 0.5f,
-                center = Offset(bowCenterX + bowSize * 0.6f, bowCenterY)
+            // Horizontal ribbon on right face
+            drawPath(
+                path = Path().apply {
+                    val ribbonY = gift1Top + gift1Height / 2f - ribbonWidth / 2f
+                    moveTo(gift1X + gift1Width, ribbonY)
+                    lineTo(gift1X + gift1Width + topDepth * 0.7f, ribbonY - topDepth * 0.5f)
+                    lineTo(gift1X + gift1Width + topDepth * 0.7f, ribbonY + ribbonWidth - topDepth * 0.5f)
+                    lineTo(gift1X + gift1Width, ribbonY + ribbonWidth)
+                    close()
+                },
+                brush = Brush.linearGradient(
+                    colors = listOf(
+                        Color(0xFFFFB300),
+                        Color(0xFFFF8F00)
+                    )
+                )
+            )
+
+            // 3D Bow on top
+            val bow1Y = gift1Top - gift1Height * 0.05f
+            val bowSize = gift1Width * 0.45f
+            val bowCenterX = gift1X + gift1Width / 2f
+            // Ribbon tails
+            drawPath(
+                path = Path().apply {
+                    moveTo(bowCenterX - bowSize * 0.08f, bow1Y + bowSize * 0.15f)
+                    lineTo(bowCenterX - bowSize * 0.15f, bow1Y + bowSize * 0.35f)
+                    lineTo(bowCenterX - bowSize * 0.05f, bow1Y + bowSize * 0.32f)
+                    lineTo(bowCenterX, bow1Y + bowSize * 0.15f)
+                    close()
+                },
+                color = Color(0xFFFFD54F)
+            )
+            drawPath(
+                path = Path().apply {
+                    moveTo(bowCenterX + bowSize * 0.08f, bow1Y + bowSize * 0.15f)
+                    lineTo(bowCenterX + bowSize * 0.15f, bow1Y + bowSize * 0.35f)
+                    lineTo(bowCenterX + bowSize * 0.05f, bow1Y + bowSize * 0.32f)
+                    lineTo(bowCenterX, bow1Y + bowSize * 0.15f)
+                    close()
+                },
+                color = Color(0xFFFFD54F)
+            )
+            // Left loop with 3D shading
+            drawPath(
+                path = Path().apply {
+                    moveTo(bowCenterX - bowSize * 0.15f, bow1Y)
+                    quadraticBezierTo(
+                        bowCenterX - bowSize * 0.5f, bow1Y - bowSize * 0.3f,
+                        bowCenterX - bowSize * 0.42f, bow1Y + bowSize * 0.05f
+                    )
+                    quadraticBezierTo(
+                        bowCenterX - bowSize * 0.35f, bow1Y + bowSize * 0.15f,
+                        bowCenterX - bowSize * 0.15f, bow1Y + bowSize * 0.08f
+                    )
+                    close()
+                },
+                brush = Brush.radialGradient(
+                    colors = listOf(
+                        Color(0xFFFFD54F),
+                        Color(0xFFFFC107),
+                        Color(0xFFFFB300)
+                    ),
+                    center = Offset(bowCenterX - bowSize * 0.35f, bow1Y - bowSize * 0.1f)
+                )
+            )
+            // Right loop with 3D shading
+            drawPath(
+                path = Path().apply {
+                    moveTo(bowCenterX + bowSize * 0.15f, bow1Y)
+                    quadraticBezierTo(
+                        bowCenterX + bowSize * 0.5f, bow1Y - bowSize * 0.3f,
+                        bowCenterX + bowSize * 0.42f, bow1Y + bowSize * 0.05f
+                    )
+                    quadraticBezierTo(
+                        bowCenterX + bowSize * 0.35f, bow1Y + bowSize * 0.15f,
+                        bowCenterX + bowSize * 0.15f, bow1Y + bowSize * 0.08f
+                    )
+                    close()
+                },
+                brush = Brush.radialGradient(
+                    colors = listOf(
+                        Color(0xFFFFD54F),
+                        Color(0xFFFFC107),
+                        Color(0xFFFFB300)
+                    ),
+                    center = Offset(bowCenterX + bowSize * 0.35f, bow1Y - bowSize * 0.1f)
+                )
             )
             // Center knot
             drawCircle(
-                color = Color(0xFFFFAA00),
-                radius = bowSize * 0.35f,
-                center = Offset(bowCenterX, bowCenterY)
+                color = Color(0xFFFFA000),
+                radius = bowSize * 0.12f,
+                center = Offset(bowCenterX, bow1Y + bowSize * 0.04f)
             )
+
             // Gift 2: Green box in center (taller)
-            val gift2X = centerX - treeWidth * 0.10f
-            val gift2Width = treeWidth * 0.20f
-            val gift2Height = gift2Width * 1.15f
+            val gift2X = centerX - treeWidth * 0.13f // shift left for larger size
+            val gift2Width = treeWidth * 0.25f // was 0.20f
+            val gift2Height = gift2Width * 1.18f // was 1.15f
             val gift2Color = Color(0xFF388E3C)
-            val gift2Bottom = groundYAt(gift2X + (gift2Width * 2f))
+            val gift2CenterX = gift2X + gift2Width / 2f
+            val gift2Bottom = groundYAt(gift2CenterX)
             val gift2Top = gift2Bottom - gift2Height
-            // Box
+
+            // Shadow for gift 2
+            drawDropShadow(
+                center = Offset(gift2X + gift2Width / 2f, gift2Bottom + 3f),
+                width = gift2Width * 1.1f,
+                height = gift2Width * 0.3f,
+                blurRadius = 28f,
+                alpha = 0.15f
+            )
+
+            // 3D Box - Front face with shading
             drawRect(
-                color = gift2Color,
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        Color(0xFF43A047),
+                        Color(0xFF388E3C),
+                        Color(0xFF2E7D32)
+                    )
+                ),
                 topLeft = Offset(gift2X, gift2Top),
                 size = Size(gift2Width, gift2Height)
             )
-            // Vertical ribbon (silver)
+            
+            // 3D Box - Top face (perspective) - More visible
+            val topDepth2 = gift2Width * 0.35f
+            drawPath(
+                path = Path().apply {
+                    moveTo(gift2X, gift2Top)
+                    lineTo(gift2X + topDepth2 * 0.7f, gift2Top - topDepth2 * 0.5f)
+                    lineTo(gift2X + gift2Width + topDepth2 * 0.7f, gift2Top - topDepth2 * 0.5f)
+                    lineTo(gift2X + gift2Width, gift2Top)
+                    close()
+                },
+                brush = Brush.linearGradient(
+                    colors = listOf(
+                        Color(0xFF4CAF50),
+                        Color(0xFF66BB6A),
+                        Color(0xFF4CAF50)
+                    ),
+                    start = Offset(gift2X, gift2Top - topDepth2 * 0.5f),
+                    end = Offset(gift2X + gift2Width, gift2Top - topDepth2 * 0.5f)
+                )
+            )
+            
+            // 3D Box - Right side face (darker)
+            drawPath(
+                path = Path().apply {
+                    moveTo(gift2X + gift2Width, gift2Top)
+                    lineTo(gift2X + gift2Width + topDepth2 * 0.7f, gift2Top - topDepth2 * 0.5f)
+                    lineTo(gift2X + gift2Width + topDepth2 * 0.7f, gift2Bottom - topDepth2 * 0.5f)
+                    lineTo(gift2X + gift2Width, gift2Bottom)
+                    close()
+                },
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        Color(0xFF003300),
+                        Color(0xFF1B5E20),
+                        Color(0xFF003300)
+                    )
+                )
+            )
+
+            // Vertical ribbon (silver/white) with shading
+            val ribbonWidth2 = gift2Width * 0.18f
             drawRect(
-                color = Color(0xFFC0C0C0),
-                topLeft = Offset(gift2X + gift2Width / 2f - ribbonWidth / 2f, gift2Top),
-                size = Size(ribbonWidth, gift2Height)
+                brush = Brush.horizontalGradient(
+                    colors = listOf(
+                        Color(0xFFBDBDBD),
+                        Color(0xFFE0E0E0),
+                        Color(0xFFF5F5F5),
+                        Color(0xFFE0E0E0),
+                        Color(0xFFBDBDBD)
+                    )
+                ),
+                topLeft = Offset(gift2X + gift2Width / 2f - ribbonWidth2 / 2f, gift2Top),
+                size = Size(ribbonWidth2, gift2Height)
             )
-            // Horizontal ribbon
+            // Ribbon on top face
+            drawPath(
+                path = Path().apply {
+                    val ribbonX = gift2X + gift2Width / 2f - ribbonWidth2 / 2f
+                    moveTo(ribbonX, gift2Top)
+                    lineTo(ribbonX + topDepth2 * 0.6f, gift2Top - topDepth2 * 0.4f)
+                    lineTo(ribbonX + ribbonWidth2 + topDepth2 * 0.6f, gift2Top - topDepth2 * 0.4f)
+                    lineTo(ribbonX + ribbonWidth2, gift2Top)
+                    close()
+                },
+                color = Color(0xFFF5F5F5)
+            )
+            // Ribbon on right face
+            drawPath(
+                path = Path().apply {
+                    val ribbonX = gift2X + gift2Width / 2f - ribbonWidth2 / 2f
+                    moveTo(ribbonX + ribbonWidth2, gift2Top)
+                    lineTo(ribbonX + ribbonWidth2 + topDepth2 * 0.6f, gift2Top - topDepth2 * 0.4f)
+                    lineTo(ribbonX + ribbonWidth2 + topDepth2 * 0.6f, gift2Bottom - topDepth2 * 0.4f)
+                    lineTo(ribbonX + ribbonWidth2, gift2Bottom)
+                    close()
+                },
+                color = Color(0xFFBDBDBD)
+            )
+
+            // Horizontal ribbon on front face
             drawRect(
-                color = Color(0xFFC0C0C0),
-                topLeft = Offset(gift2X, gift2Top + gift2Height * 0.35f - ribbonWidth / 2f),
-                size = Size(gift2Width, ribbonWidth)
+                color = Color(0xFFE0E0E0),
+                topLeft = Offset(gift2X, gift2Top + gift2Height / 2f - ribbonWidth2 / 2f),
+                size = Size(gift2Width, ribbonWidth2)
             )
-            // Bow on top (larger, at top of box)
-            val bow2X = gift2X + gift2Width / 2f
-            val bow2Y = gift2Top + gift2Height * 0.35f
-            val bow2Size = ribbonWidth * 2.4f
+            // Horizontal ribbon on top face
+            drawPath(
+                path = Path().apply {
+                    moveTo(gift2X, gift2Top)
+                    lineTo(gift2X + topDepth2 * 0.6f, gift2Top - topDepth2 * 0.4f)
+                    lineTo(gift2X + gift2Width + topDepth2 * 0.6f, gift2Top - topDepth2 * 0.4f)
+                    lineTo(gift2X + gift2Width, gift2Top)
+                    close()
+                },
+                color = Color(0xFFF5F5F5)
+            )
+            // Horizontal ribbon on right face
+            drawPath(
+                path = Path().apply {
+                    val ribbonY = gift2Top + gift2Height / 2f - ribbonWidth2 / 2f
+                    moveTo(gift2X + gift2Width, ribbonY)
+                    lineTo(gift2X + gift2Width + topDepth2 * 0.6f, ribbonY - topDepth2 * 0.4f)
+                    lineTo(gift2X + gift2Width + topDepth2 * 0.6f, ribbonY + ribbonWidth2 - topDepth2 * 0.4f)
+                    lineTo(gift2X + gift2Width, ribbonY + ribbonWidth2)
+                    close()
+                },
+                color = Color(0xFFBDBDBD)
+            )
+
+            // 3D Bow on top
+            val bow2Y = gift2Top - gift2Height * 0.05f
+            val bow2Size = gift2Width * 0.45f
+            val bow2CenterX = gift2X + gift2Width / 2f
+            // Ribbon tails
+            drawPath(
+                path = Path().apply {
+                    moveTo(bow2CenterX - bow2Size * 0.08f, bow2Y + bow2Size * 0.15f)
+                    lineTo(bow2CenterX - bow2Size * 0.15f, bow2Y + bow2Size * 0.35f)
+                    lineTo(bow2CenterX - bow2Size * 0.05f, bow2Y + bow2Size * 0.32f)
+                    lineTo(bow2CenterX, bow2Y + bow2Size * 0.15f)
+                    close()
+                },
+                color = Color(0xFFF5F5F5)
+            )
+            drawPath(
+                path = Path().apply {
+                    moveTo(bow2CenterX + bow2Size * 0.08f, bow2Y + bow2Size * 0.15f)
+                    lineTo(bow2CenterX + bow2Size * 0.15f, bow2Y + bow2Size * 0.35f)
+                    lineTo(bow2CenterX + bow2Size * 0.05f, bow2Y + bow2Size * 0.32f)
+                    lineTo(bow2CenterX, bow2Y + bow2Size * 0.15f)
+                    close()
+                },
+                color = Color(0xFFF5F5F5)
+            )
+            // Left loop
+            drawPath(
+                path = Path().apply {
+                    moveTo(bow2CenterX - bow2Size * 0.15f, bow2Y)
+                    quadraticBezierTo(
+                        bow2CenterX - bow2Size * 0.5f, bow2Y - bow2Size * 0.3f,
+                        bow2CenterX - bow2Size * 0.42f, bow2Y + bow2Size * 0.05f
+                    )
+                    quadraticBezierTo(
+                        bow2CenterX - bow2Size * 0.35f, bow2Y + bow2Size * 0.15f,
+                        bow2CenterX - bow2Size * 0.15f, bow2Y + bow2Size * 0.08f
+                    )
+                    close()
+                },
+                color = Color(0xFFE0E0E0)
+            )
+            // Right loop
+            drawPath(
+                path = Path().apply {
+                    moveTo(bow2CenterX + bow2Size * 0.15f, bow2Y)
+                    quadraticBezierTo(
+                        bow2CenterX + bow2Size * 0.5f, bow2Y - bow2Size * 0.3f,
+                        bow2CenterX + bow2Size * 0.42f, bow2Y + bow2Size * 0.05f
+                    )
+                    quadraticBezierTo(
+                        bow2CenterX + bow2Size * 0.35f, bow2Y + bow2Size * 0.15f,
+                        bow2CenterX + bow2Size * 0.15f, bow2Y + bow2Size * 0.08f
+                    )
+                    close()
+                },
+                color = Color(0xFFE0E0E0)
+            )
+            // Center knot
             drawCircle(
-                color = Color(0xFFC0C0C0),
-                radius = bow2Size * 0.5f,
-                center = Offset(bow2X - bow2Size * 0.6f, bow2Y)
+                color = Color(0xFFBDBDBD),
+                radius = bow2Size * 0.12f,
+                center = Offset(bow2CenterX, bow2Y + bow2Size * 0.04f)
             )
-            drawCircle(
-                color = Color(0xFFC0C0C0),
-                radius = bow2Size * 0.5f,
-                center = Offset(bow2X + bow2Size * 0.6f, bow2Y)
-            )
-            drawCircle(
-                color = Color(0xFFB0B0B0),
-                radius = bow2Size * 0.38f,
-                center = Offset(bow2X, bow2Y)
-            )
+
             // Gift 3: Blue box on the right (smaller, wider)
-            val gift3X = centerX + treeWidth * 0.12f
-            val gift3Width = treeWidth * 0.22f
-            val gift3Height = gift3Width * 0.75f
+            val gift3X = centerX + treeWidth * 0.17f // shift right for larger size
+            val gift3Width = treeWidth * 0.28f // was 0.22f
+            val gift3Height = gift3Width * 0.80f // was 0.75f
             val gift3Color = Color(0xFF1976D2)
             val gift3Bottom = groundYAt(gift3X + gift3Width / 2f)
             val gift3Top = gift3Bottom - gift3Height
-            // Box
+
+            // Shadow for gift 3
+            drawDropShadow(
+                center = Offset(gift3X + gift3Width / 2f, gift3Bottom + 3f),
+                width = gift3Width * 1.1f,
+                height = gift3Width * 0.3f,
+                blurRadius = 28f,
+                alpha = 0.15f
+            )
+
+            // 3D Box - Front face with shading
             drawRect(
-                color = gift3Color,
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        Color(0xFF1E88E5),
+                        Color(0xFF1976D2),
+                        Color(0xFF1565C0)
+                    )
+                ),
                 topLeft = Offset(gift3X, gift3Top),
                 size = Size(gift3Width, gift3Height)
             )
-            // Vertical ribbon (white with hint of blue)
+            
+            // 3D Box - Top face (perspective) - More visible
+            val topDepth3 = gift3Width * 0.35f
+            drawPath(
+                path = Path().apply {
+                    moveTo(gift3X, gift3Top)
+                    lineTo(gift3X + topDepth3 * 0.7f, gift3Top - topDepth3 * 0.5f)
+                    lineTo(gift3X + gift3Width + topDepth3 * 0.7f, gift3Top - topDepth3 * 0.5f)
+                    lineTo(gift3X + gift3Width, gift3Top)
+                    close()
+                },
+                brush = Brush.linearGradient(
+                    colors = listOf(
+                        Color(0xFF2196F3),
+                        Color(0xFF42A5F5),
+                        Color(0xFF2196F3)
+                    ),
+                    start = Offset(gift3X, gift3Top - topDepth3 * 0.5f),
+                    end = Offset(gift3X + gift3Width, gift3Top - topDepth3 * 0.5f)
+                )
+            )
+            
+            // 3D Box - Right side face (darker)
+            drawPath(
+                path = Path().apply {
+                    moveTo(gift3X + gift3Width, gift3Top)
+                    lineTo(gift3X + gift3Width + topDepth3 * 0.7f, gift3Top - topDepth3 * 0.5f)
+                    lineTo(gift3X + gift3Width + topDepth3 * 0.7f, gift3Bottom - topDepth3 * 0.5f)
+                    lineTo(gift3X + gift3Width, gift3Bottom)
+                    close()
+                },
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        Color(0xFF01579B),
+                        Color(0xFF0D47A1),
+                        Color(0xFF01579B)
+                    )
+                )
+            )
+
+            // Vertical ribbon (white) with shading
+            val ribbonWidth3 = gift3Width * 0.18f
             drawRect(
-                color = Color(0xFFF0F8FF),
-                topLeft = Offset(gift3X + gift3Width * 0.40f - ribbonWidth / 2f, gift3Top),
-                size = Size(ribbonWidth, gift3Height)
+                brush = Brush.horizontalGradient(
+                    colors = listOf(
+                        Color(0xFFBDBDBD),
+                        Color(0xFFE0E0E0),
+                        Color(0xFFFFFFFF),
+                        Color(0xFFE0E0E0),
+                        Color(0xFFBDBDBD)
+                    )
+                ),
+                topLeft = Offset(gift3X + gift3Width / 2f - ribbonWidth3 / 2f, gift3Top),
+                size = Size(ribbonWidth3, gift3Height)
             )
-            // Horizontal ribbon
+            // Ribbon on top face
+            drawPath(
+                path = Path().apply {
+                    val ribbonX = gift3X + gift3Width / 2f - ribbonWidth3 / 2f
+                    moveTo(ribbonX, gift3Top)
+                    lineTo(ribbonX + topDepth3 * 0.6f, gift3Top - topDepth3 * 0.4f)
+                    lineTo(ribbonX + ribbonWidth3 + topDepth3 * 0.6f, gift3Top - topDepth3 * 0.4f)
+                    lineTo(ribbonX + ribbonWidth3, gift3Top)
+                    close()
+                },
+                color = Color(0xFFF5F5F5)
+            )
+            // Ribbon on right face
+            drawPath(
+                path = Path().apply {
+                    val ribbonX = gift3X + gift3Width / 2f - ribbonWidth3 / 2f
+                    moveTo(ribbonX + ribbonWidth3, gift3Top)
+                    lineTo(ribbonX + ribbonWidth3 + topDepth3 * 0.6f, gift3Top - topDepth3 * 0.4f)
+                    lineTo(ribbonX + ribbonWidth3 + topDepth3 * 0.6f, gift3Bottom - topDepth3 * 0.4f)
+                    lineTo(ribbonX + ribbonWidth3, gift3Bottom)
+                    close()
+                },
+                color = Color(0xFFBDBDBD)
+            )
+
+            // Horizontal ribbon on front face
             drawRect(
-                color = Color(0xFFF0F8FF),
-                topLeft = Offset(gift3X, gift3Top + gift3Height / 2f - ribbonWidth / 2f),
-                size = Size(gift3Width, ribbonWidth)
+                color = Color(0xFFFFFFFF),
+                topLeft = Offset(gift3X, gift3Top + gift3Height / 2f - ribbonWidth3 / 2f),
+                size = Size(gift3Width, ribbonWidth3)
             )
-            // Bow
-            val bow3X = gift3X + gift3Width * 0.40f
-            val bow3Y = gift3Top + gift3Height / 2f
-            val bow3Size = ribbonWidth * 2.0f
-            drawCircle(
-                color = Color(0xFFF0F8FF),
-                radius = bow3Size * 0.5f,
-                center = Offset(bow3X - bow3Size * 0.6f, bow3Y)
+            // Horizontal ribbon on top face
+            drawPath(
+                path = Path().apply {
+                    moveTo(gift3X, gift3Top)
+                    lineTo(gift3X + topDepth3 * 0.6f, gift3Top - topDepth3 * 0.4f)
+                    lineTo(gift3X + gift3Width + topDepth3 * 0.6f, gift3Top - topDepth3 * 0.4f)
+                    lineTo(gift3X + gift3Width, gift3Top)
+                    close()
+                },
+                color = Color(0xFFF5F5F5)
             )
-            drawCircle(
-                color = Color(0xFFF0F8FF),
-                radius = bow3Size * 0.5f,
-                center = Offset(bow3X + bow3Size * 0.6f, bow3Y)
+            // Horizontal ribbon on right face
+            drawPath(
+                path = Path().apply {
+                    val ribbonY = gift3Top + gift3Height / 2f - ribbonWidth3 / 2f
+                    moveTo(gift3X + gift3Width, ribbonY)
+                    lineTo(gift3X + gift3Width + topDepth3 * 0.6f, ribbonY - topDepth3 * 0.4f)
+                    lineTo(gift3X + gift3Width + topDepth3 * 0.6f, ribbonY + ribbonWidth3 - topDepth3 * 0.4f)
+                    lineTo(gift3X + gift3Width, ribbonY + ribbonWidth3)
+                    close()
+                },
+                color = Color(0xFFBDBDBD)
             )
+
+            // 3D Bow on top
+            val bow3Y = gift3Top - gift3Height * 0.05f
+            val bow3Size = gift3Width * 0.45f
+            val bow3CenterX = gift3X + gift3Width / 2f
+            // Ribbon tails
+            drawPath(
+                path = Path().apply {
+                    moveTo(bow3CenterX - bow3Size * 0.08f, bow3Y + bow3Size * 0.15f)
+                    lineTo(bow3CenterX - bow3Size * 0.15f, bow3Y + bow3Size * 0.35f)
+                    lineTo(bow3CenterX - bow3Size * 0.05f, bow3Y + bow3Size * 0.32f)
+                    lineTo(bow3CenterX, bow3Y + bow3Size * 0.15f)
+                    close()
+                },
+                color = Color(0xFFF5F5F5)
+            )
+            drawPath(
+                path = Path().apply {
+                    moveTo(bow3CenterX + bow3Size * 0.08f, bow3Y + bow3Size * 0.15f)
+                    lineTo(bow3CenterX + bow3Size * 0.15f, bow3Y + bow3Size * 0.35f)
+                    lineTo(bow3CenterX + bow3Size * 0.05f, bow3Y + bow3Size * 0.32f)
+                    lineTo(bow3CenterX, bow3Y + bow3Size * 0.15f)
+                    close()
+                },
+                color = Color(0xFFF5F5F5)
+            )
+            // Left loop
+            drawPath(
+                path = Path().apply {
+                    moveTo(bow3CenterX - bow3Size * 0.15f, bow3Y)
+                    quadraticBezierTo(
+                        bow3CenterX - bow3Size * 0.5f, bow3Y - bow3Size * 0.3f,
+                        bow3CenterX - bow3Size * 0.42f, bow3Y + bow3Size * 0.05f
+                    )
+                    quadraticBezierTo(
+                        bow3CenterX - bow3Size * 0.35f, bow3Y + bow3Size * 0.15f,
+                        bow3CenterX - bow3Size * 0.15f, bow3Y + bow3Size * 0.08f
+                    )
+                    close()
+                },
+                color = Color(0xFFFFFFFF)
+            )
+            // Right loop
+            drawPath(
+                path = Path().apply {
+                    moveTo(bow3CenterX + bow3Size * 0.15f, bow3Y)
+                    quadraticBezierTo(
+                        bow3CenterX + bow3Size * 0.5f, bow3Y - bow3Size * 0.3f,
+                        bow3CenterX + bow3Size * 0.42f, bow3Y + bow3Size * 0.05f
+                    )
+                    quadraticBezierTo(
+                        bow3CenterX + bow3Size * 0.35f, bow3Y + bow3Size * 0.15f,
+                        bow3CenterX + bow3Size * 0.15f, bow3Y + bow3Size * 0.08f
+                    )
+                    close()
+                },
+                color = Color(0xFFFFFFFF)
+            )
+            // Center knot
             drawCircle(
-                color = Color(0xFFE0F0FF),
-                radius = bow3Size * 0.35f,
-                center = Offset(bow3X, bow3Y)
+                color = Color(0xFFE0E0E0),
+                radius = bow3Size * 0.12f,
+                center = Offset(bow3CenterX, bow3Y + bow3Size * 0.04f)
             )
         }
 
