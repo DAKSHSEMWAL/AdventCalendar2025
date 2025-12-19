@@ -1,5 +1,6 @@
 package news.androiddev.composechristmas
 
+import android.R.attr.startX
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -29,6 +30,7 @@ import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.tooling.preview.Preview
 import news.androiddev.composechristmas.ui.theme.ComposeChristmasTheme
 import kotlin.math.PI
+import kotlin.math.pow
 import kotlin.math.sin
 
 class MainActivity : ComponentActivity() {
@@ -67,7 +69,7 @@ private fun DrawScope.drawSnowflake(
     rotation: Float = 0f
 ) {
     val strokeWidth = size * 0.08f
-    
+
     withTransform({
         rotate(rotation, pivot = center)
     }) {
@@ -76,7 +78,7 @@ private fun DrawScope.drawSnowflake(
             val angle = (i * 360f / branches) * (PI / 180f)
             val cosA = kotlin.math.cos(angle).toFloat()
             val sinA = kotlin.math.sin(angle).toFloat()
-            
+
             // Main branch line
             val endX = center.x + size * cosA
             val endY = center.y + size * sinA
@@ -88,14 +90,14 @@ private fun DrawScope.drawSnowflake(
                 cap = StrokeCap.Round,
                 alpha = alpha
             )
-            
+
             // Add detail branches along the main branch
             for (level in 1..complexity) {
                 val branchDist = size * (level.toFloat() / (complexity + 1))
                 val branchLength = size * (0.35f - level * 0.08f)
                 val branchX = center.x + branchDist * cosA
                 val branchY = center.y + branchDist * sinA
-                
+
                 // Left side branch
                 val leftAngle = angle - PI.toFloat() / 5f
                 val leftEndX = branchX + branchLength * kotlin.math.cos(leftAngle).toFloat()
@@ -108,7 +110,7 @@ private fun DrawScope.drawSnowflake(
                     cap = StrokeCap.Round,
                     alpha = alpha
                 )
-                
+
                 // Right side branch
                 val rightAngle = angle + PI.toFloat() / 5f
                 val rightEndX = branchX + branchLength * kotlin.math.cos(rightAngle).toFloat()
@@ -122,7 +124,7 @@ private fun DrawScope.drawSnowflake(
                     alpha = alpha
                 )
             }
-            
+
             // Optional: Add tiny crystalline details at the tips
             if (complexity > 1) {
                 val tipSize = size * 0.12f
@@ -134,7 +136,7 @@ private fun DrawScope.drawSnowflake(
                 )
             }
         }
-        
+
         // Center crystalline core
         drawCircle(
             color = color,
@@ -196,7 +198,7 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
         // --- 1. Sky Background (Animated) ---
         // Cycle through night -> dawn -> day -> dusk -> night
         val skyPhase = (sin(2.0 * PI * skyTime.value) + 1.0) * 0.5 // 0..1 smooth cycle
-        
+
         val skyBrush = when (skyTheme) {
             SkyTheme.NightSky -> {
                 // Animate between deep night and dawn colors
@@ -277,9 +279,10 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
         starPositions.forEachIndexed { idx, pos ->
             // Each star has its own phase offset for staggered twinkling
             val starPhase = ((idx * 23 + 7) % 100) / 100f
-            val starBrightness = ((sin(2.0 * PI * (starTwinkleTime.value + starPhase)) + 1.0) * 0.5).toFloat()
+            val starBrightness =
+                ((sin(2.0 * PI * (starTwinkleTime.value + starPhase)) + 1.0) * 0.5).toFloat()
             val brightness = 0.5f + 0.5f * starBrightness // 0.5..1.0 range
-            
+
             // Glow Halo (animated)
             drawCircle(
                 color = starColor.copy(alpha = starGlowAlpha * brightness),
@@ -426,7 +429,8 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
             val innerRadius = outerRadius * 0.45f
 
             // Animation factors for star pulse and subtle rotation
-            val starPulse = ((sin(2.0 * PI * (twinkleTime.value * 1.20 + 0.05)) + 1.0) * 0.5).toFloat()
+            val starPulse =
+                ((sin(2.0 * PI * (twinkleTime.value * 1.20 + 0.05)) + 1.0) * 0.5).toFloat()
             val starScale = 0.96f + 0.08f * starPulse
             val starRot = (sin(2.0 * PI * (twinkleTime.value * 0.60 + 0.15)) * 2.0).toFloat()
 
@@ -488,16 +492,17 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
         // Bezier P0y=0.85, P1y=0.80, P2y=0.80, P3y=0.85 -> Midpoint is ~0.8125
         val groundYAtCenter = canvasHeight * 0.81f
 
-        val trunkWidth = treeWidth * 0.14f
+        // Make trunk thicker and taller
+        val trunkWidth = treeWidth * 0.22f // was 0.14f
         val trunkLeft = (canvasWidth - trunkWidth) / 2f
 
         // Calculate bottom of foliage
         val lastLayerTop = treeTop + (numLayers - 1) * (layerHeight - layerOverlap)
         val lastLayerBottom = lastLayerTop + layerHeight
 
-        // Connect trunk from inside foliage to slightly below ground
-        val trunkTop = lastLayerBottom - layerHeight * 0.5f
-        val trunkBottom = groundYAtCenter + 10f // Bury it slightly
+        // Make trunk taller: start higher and end deeper
+        val trunkTop = lastLayerBottom - layerHeight * 1.0f // was 0.5f
+        val trunkBottom = groundYAtCenter + 32f // was +10f
 
         // Tree sway animation (gentle rotation around ground center)
         val treeSwayDeg = (sin(2.0 * PI * (treeSwayTime.value + 0.10)) * 1.1).toFloat()
@@ -509,482 +514,442 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
                 size = Size(trunkWidth, trunkBottom - trunkTop)
             )
 
-        // --- Candy canes hanging on the tree ---
-        fun drawCandyCane(center: Offset, height: Float, thickness: Float, rotationDeg: Float) {
-            val hookR = thickness * 2.2f
-            val topY = center.y - height / 2f
-            val path = Path().apply {
-                // Hook curve to the right, then vertical stem
-                moveTo(center.x, topY)
-                quadraticTo(
-                    center.x + hookR * 0.9f,
-                    topY + hookR * 0.2f,
-                    center.x + hookR * 1.4f,
-                    topY + hookR * 0.8f
-                )
-                quadraticTo(
-                    center.x + hookR * 1.8f,
-                    topY + hookR * 1.6f,
-                    center.x + hookR * 0.9f,
-                    topY + hookR * 2.2f
-                )
-                lineTo(center.x, center.y + height / 2f)
-            }
+            // --- Candy canes hanging on the tree ---
+            fun drawCandyCane(center: Offset, height: Float, thickness: Float, rotationDeg: Float) {
+                val hookR = thickness * 2.2f
+                val topY = center.y - height / 2f
+                val path = Path().apply {
+                    // Hook curve to the right, then vertical stem
+                    moveTo(center.x, topY)
+                    quadraticTo(
+                        center.x + hookR * 0.9f,
+                        topY + hookR * 0.2f,
+                        center.x + hookR * 1.4f,
+                        topY + hookR * 0.8f
+                    )
+                    quadraticTo(
+                        center.x + hookR * 1.8f,
+                        topY + hookR * 1.6f,
+                        center.x + hookR * 0.9f,
+                        topY + hookR * 2.2f
+                    )
+                    lineTo(center.x, center.y + height / 2f)
+                }
 
-            withTransform({ rotate(rotationDeg, pivot = center) }) {
-                // Base white cane body
-                drawPath(
-                    path = path,
-                    color = Color.White,
-                    style = Stroke(width = thickness, cap = StrokeCap.Round)
-                )
-                // Red stripes via dash effect along the cane path
-                val stripeLen = thickness * 1.6f
-                drawPath(
-                    path = path,
-                    color = Color(0xFFD32F2F),
-                    style = Stroke(
-                        width = thickness,
-                        cap = StrokeCap.Round,
-                        pathEffect = PathEffect.dashPathEffect(
-                            floatArrayOf(stripeLen, stripeLen),
-                            0f
+                withTransform({ rotate(rotationDeg, pivot = center) }) {
+                    // Base white cane body
+                    drawPath(
+                        path = path,
+                        color = Color.White,
+                        style = Stroke(width = thickness, cap = StrokeCap.Round)
+                    )
+                    // Red stripes via dash effect along the cane path
+                    val stripeLen = thickness * 1.6f
+                    drawPath(
+                        path = path,
+                        color = Color(0xFFD32F2F),
+                        style = Stroke(
+                            width = thickness,
+                            cap = StrokeCap.Round,
+                            pathEffect = PathEffect.dashPathEffect(
+                                floatArrayOf(stripeLen, stripeLen),
+                                0f
+                            )
                         )
                     )
-                )
-            }
-        }
-
-        // Calls moved after foliage to ensure canes render in front of tree
-
-        // --- 7. Tree Foliage Layers ---
-        val layerBounds = mutableListOf<Pair<Float, Float>>()
-        for (i in 0 until numLayers) {
-            val progressFromTop = i / (numLayers - 1f)
-            val layerTop = treeTop + i * (layerHeight - layerOverlap)
-            val layerBottom = layerTop + layerHeight
-
-            val baseWidth = treeWidth * (0.25f + 0.75f * progressFromTop)
-
-            // Wobble for organic feel
-            val wobble = (if (i % 2 == 0) 1f else -1f) * baseWidth * 0.06f
-            val layerWidth = baseWidth + wobble
-            val layerLeft = centerX - layerWidth / 2f
-            val layerRight = centerX + layerWidth / 2f
-
-            layerBounds.add(layerLeft to layerRight)
-
-            val controlYOffset = layerHeight * 0.35f
-
-            val path = Path().apply {
-                moveTo(centerX, layerTop)
-                // Right Scallop
-                quadraticTo(
-                    centerX + layerWidth * 0.55f,
-                    layerTop + controlYOffset * 0.9f,
-                    layerRight,
-                    layerBottom
-                )
-                // Bottom Curve (inward)
-                quadraticTo(
-                    centerX,
-                    layerBottom - layerHeight * 0.15f,
-                    layerLeft,
-                    layerBottom
-                )
-                // Left Scallop
-                quadraticTo(
-                    centerX - layerWidth * 0.55f,
-                    layerTop + controlYOffset * 0.9f,
-                    centerX,
-                    layerTop
-                )
-                close()
-            }
-
-            drawPath(path = path, brush = foliageBrush)
-        }
-
-        // --- Candy canes (draw AFTER foliage so they appear in front) ---
-        run {
-            val midX = centerX
-            val leftCaneCenter = Offset(midX - treeWidth * 0.22f, treeTop + layerHeight * 5.4f)
-            val rightCaneCenter = Offset(midX + treeWidth * 0.20f, treeTop + layerHeight * 3.6f)
-            // Smaller size and thinner stripes
-            drawCandyCane(
-                center = leftCaneCenter,
-                height = layerHeight * 1.2f,
-                thickness = treeWidth * 0.035f,
-                rotationDeg = -16f
-            )
-            drawCandyCane(
-                center = rightCaneCenter,
-                height = layerHeight * 1.2f,
-                thickness = treeWidth * 0.032f,
-                rotationDeg = 12f
-            )
-        }
-
-        // --- 7a. Fairy Lights Wire (thin, wraps like garland) ---
-        run {
-            // Thin wire width
-            val wireWidth = layerHeight * 0.06f
-            val wirePath = Path()
-            val wraps = listOf(2, 4, 6, 8) // distribute wire across layers
-            var started = false
-            for ((idx, layerIndex) in wraps.withIndex()) {
-                val t = layerIndex / (numLayers - 1f)
-                val baseWidth = treeWidth * (0.25f + 0.75f * t)
-                val wobble = (if (layerIndex % 2 == 0) 1f else -1f) * baseWidth * 0.05f
-                val layerWidth = baseWidth + wobble
-                val y = treeTop + layerIndex * (layerHeight - layerOverlap) + layerHeight * 0.52f
-                val leftX = centerX - layerWidth * 0.50f
-                val rightX = centerX + layerWidth * 0.50f
-
-                val amplitude = layerHeight * 0.18f
-                val cp1 = Offset(centerX - layerWidth * 0.20f, y - amplitude * 0.8f)
-                val cp2 = Offset(centerX + layerWidth * 0.20f, y + amplitude * 0.8f)
-
-                if (!started) {
-                    wirePath.moveTo(leftX, y)
-                    started = true
                 }
-                // Wave from left to right
-                wirePath.cubicTo(cp1.x, cp1.y, cp2.x, cp2.y, rightX, y)
-                // Descent to next wrap
-                if (idx != wraps.lastIndex) {
-                    val nextT = wraps[idx + 1] / (numLayers - 1f)
-                    val nextBase = treeWidth * (0.25f + 0.75f * nextT)
-                    val nextWobble = (if (wraps[idx + 1] % 2 == 0) 1f else -1f) * nextBase * 0.05f
-                    val nextWidth = nextBase + nextWobble
-                    val nextY = treeTop + wraps[idx + 1] * (layerHeight - layerOverlap) + layerHeight * 0.50f
-                    val nextLeftX = centerX - nextWidth * 0.48f
-                    wirePath.cubicTo(
-                        centerX + layerWidth * 0.08f, y + amplitude * 0.5f,
-                        centerX - nextWidth * 0.16f, nextY - amplitude * 0.5f,
-                        nextLeftX, nextY
+            }
+
+            // Calls moved after foliage to ensure canes render in front of tree
+
+            // --- 7. Tree Foliage Layers with Rounded Scalloped Edges ---
+            val layerBounds = mutableListOf<Pair<Float, Float>>()
+            for (i in 0 until numLayers) {
+                val progressFromTop = i / (numLayers - 1f)
+                val layerTop = treeTop + i * (layerHeight - layerOverlap)
+                val layerBottom = layerTop + layerHeight
+
+                val baseWidth = treeWidth * (0.25f + 0.75f * progressFromTop)
+                val layerWidth = baseWidth
+                val layerLeft = centerX - layerWidth / 2f
+                val layerRight = centerX + layerWidth / 2f
+
+                layerBounds.add(layerLeft to layerRight)
+
+                // Number of scallops increases with layer size
+                val numScallops = 5 + i
+                val scallopsPerSide = numScallops / 2
+
+                // Create rounded, scalloped layer outline
+                val path = Path().apply {
+                    moveTo(centerX, layerTop)
+
+                    // Right side scallops
+                    for (j in 0 until scallopsPerSide) {
+                        val t1 = j / scallopsPerSide.toFloat()
+                        val t2 = (j + 1) / scallopsPerSide.toFloat()
+                        val y1 = layerTop + layerHeight * t1
+                        val y2 = layerTop + layerHeight * t2
+                        val yMid = (y1 + y2) / 2f
+                        val x1 = centerX + (layerWidth / 2f) * t1
+                        val x2 = centerX + (layerWidth / 2f) * t2
+                        val xPeak = x2 + layerWidth * 0.08f
+
+                        quadraticTo(xPeak, yMid, x2, y2)
+                    }
+
+                    // Bottom rounded edge
+                    val bottomY = layerBottom
+                    cubicTo(
+                        layerRight * 0.8f + centerX * 0.2f, bottomY + layerHeight * 0.1f,
+                        layerLeft * 0.8f + centerX * 0.2f, bottomY + layerHeight * 0.1f,
+                        layerLeft, layerBottom
                     )
+
+                    // Left side scallops
+                    for (j in scallopsPerSide - 1 downTo 0) {
+                        val t1 = (j + 1) / scallopsPerSide.toFloat()
+                        val t2 = j / scallopsPerSide.toFloat()
+                        val y1 = layerTop + layerHeight * t1
+                        val y2 = layerTop + layerHeight * t2
+                        val yMid = (y1 + y2) / 2f
+                        val x1 = centerX - (layerWidth / 2f) * t1
+                        val x2 = centerX - (layerWidth / 2f) * t2
+                        val xPeak = x1 - layerWidth * 0.08f
+
+                        quadraticTo(xPeak, yMid, x2, y2)
+                    }
+
+                    close()
                 }
-            }
 
-            // Draw the wire: subtle dark color with slight transparency
-            drawPath(
-                path = wirePath,
-                color = Color(0xFF37474F).copy(alpha = 0.85f),
-                style = Stroke(width = wireWidth, cap = StrokeCap.Round)
-            )
+                // Draw main layer with gradient
+                drawPath(path = path, brush = foliageBrush)
 
-            // Add fairy light bulbs along the wire using LightState
-            val measure = androidx.compose.ui.graphics.PathMeasure()
-            measure.setPath(wirePath, false)
-            val length = measure.length
-
-            val bulbStep = layerHeight * 0.45f // denser spacing for a fuller look
-            val baseRadius = layerHeight * 0.10f
-            val palette = listOf(
-                Color(0xFFFFF6E5), // warm white
-                Color(0xFFFF5252), // red
-                Color(0xFF69F0AE), // green
-                Color(0xFF40C4FF), // cyan-blue
-                Color(0xFFFFD740), // amber
-                Color(0xFFEA80FC)  // violet
-            )
-
-            val lights = buildList {
-                var dist = bulbStep * 0.5f
-                var idx = 0
-                while (dist <= length) {
-                    val pos = measure.getPosition(dist)
-                    val color = palette[idx % palette.size]
-                    val phase = ((idx * 37) % 100) / 100f // deterministic phase offset
-                    val jitter = ((idx * 17 + 7) % 100) / 100f // 0..1
-                    val radius = baseRadius * (0.9f + 0.2f * jitter) // subtle size variance
-                    add(LightState(position = pos, color = color, radius = radius, isOn = true, phase = phase))
-                    dist += bulbStep
-                    idx++
-                }
-            }
-
-            // Render bulbs (static for now; LightState enables future animation)
-            lights.forEach { light ->
-                // Twinkle factor: 0.0..1.0 based on shared time and per-light phase
-                val sparkle = ((sin(2.0 * PI * (twinkleTime.value + light.phase)) + 1.0) * 0.5).toFloat()
-                val onFactor = if (light.isOn) 1f else 0.15f
-                val factor = (0.45f + 0.55f * sparkle) * onFactor
-
-                val glowRadius = light.radius * (2.0f + 0.6f * sparkle)
-                // Soft outer glow
-                drawCircle(
-                    color = light.color.copy(alpha = 0.28f * factor),
-                    radius = glowRadius,
-                    center = light.position
-                )
-                drawCircle(
-                    color = light.color.copy(alpha = 0.20f * factor),
-                    radius = glowRadius * 0.65f,
-                    center = light.position
-                )
-                // Bulb core
-                drawCircle(
-                    color = light.color.copy(alpha = 0.90f * factor),
-                    radius = light.radius,
-                    center = light.position
-                )
-                // Tiny white spec highlight
-                drawCircle(
-                    color = Color.White.copy(alpha = 0.85f * factor),
-                    radius = light.radius * 0.18f,
-                    center = Offset(light.position.x - light.radius * 0.25f, light.position.y - light.radius * 0.25f)
-                )
-            }
-        }
-
-        // --- 7b. Garland (tinsel wrapping with bezier path and PathMeasure) ---
-        run {
-            // Size unit for garland elements (similar to ornamentRadius but scoped here)
-            val garlandUnit = layerHeight * 0.14f
-
-            // Build a wavy garland that wraps around several layers of the tree
-            val garlandPath = Path()
-            val wraps = listOf(1, 3, 5, 7) // layers to anchor garland waves
-            var started = false
-            for ((idx, layerIndex) in wraps.withIndex()) {
-                val t = layerIndex / (numLayers - 1f)
-                val baseWidth = treeWidth * (0.25f + 0.75f * t)
-                val wobble = (if (layerIndex % 2 == 0) 1f else -1f) * baseWidth * 0.06f
-                val layerWidth = baseWidth + wobble
-                val y = treeTop + layerIndex * (layerHeight - layerOverlap) + layerHeight * 0.55f
-                val leftX = centerX - layerWidth * 0.48f
-                val rightX = centerX + layerWidth * 0.48f
-
-                val amplitude = layerHeight * 0.30f
-                val cp1 = Offset(centerX - layerWidth * 0.18f, y - amplitude * 0.8f)
-                val cp2 = Offset(centerX + layerWidth * 0.18f, y + amplitude * 0.8f)
-
-                if (!started) {
-                    garlandPath.moveTo(leftX, y)
-                    started = true
-                }
-                // Wave from left to right
-                garlandPath.cubicTo(
-                    cp1.x, cp1.y,
-                    cp2.x, cp2.y,
-                    rightX, y
-                )
-                // Small descent between wraps to simulate vertical progression
-                if (idx != wraps.lastIndex) {
-                    val nextT = wraps[idx + 1] / (numLayers - 1f)
-                    val nextBase = treeWidth * (0.25f + 0.75f * nextT)
-                    val nextWobble = (if (wraps[idx + 1] % 2 == 0) 1f else -1f) * nextBase * 0.06f
-                    val nextWidth = nextBase + nextWobble
-                    val nextY =
-                        treeTop + wraps[idx + 1] * (layerHeight - layerOverlap) + layerHeight * 0.45f
-                    val nextLeftX = centerX - nextWidth * 0.45f
-                    // Connect downwards with a gentle curve back to the left edge
-                    garlandPath.cubicTo(
-                        centerX + layerWidth * 0.10f, y + amplitude * 0.6f,
-                        centerX - nextWidth * 0.20f, nextY - amplitude * 0.6f,
-                        nextLeftX, nextY
+                // Add darker shadow at bottom of layer
+                val shadowPath = Path().apply {
+                    val shadowHeight = layerHeight * 0.25f
+                    moveTo(layerRight, layerBottom)
+                    cubicTo(
+                        layerRight * 0.8f + centerX * 0.2f, layerBottom + layerHeight * 0.1f,
+                        layerLeft * 0.8f + centerX * 0.2f, layerBottom + layerHeight * 0.1f,
+                        layerLeft, layerBottom
                     )
-                }
-            }
-
-            // Tinsel style: stroke-like dots and small sparkles along the path using PathMeasure
-            val measure = androidx.compose.ui.graphics.PathMeasure()
-            measure.setPath(garlandPath, false)
-            val length = measure.length
-
-            // Draw sampled dots
-            val step = garlandUnit * 0.80f
-            var dist = 0f
-            while (dist <= length) {
-                val pos = measure.getPosition(dist)
-                val sparkleColor = Color(0xFFE0F7FA)
-                // Base tinsel dot
-                drawCircle(
-                    color = sparkleColor.copy(alpha = 0.75f),
-                    radius = garlandUnit * 0.10f,
-                    center = pos
-                )
-                // Tiny star-like cross
-                val crossLen = garlandUnit * 0.16f
-                drawLine(
-                    color = sparkleColor.copy(alpha = 0.65f),
-                    start = Offset(pos.x - crossLen, pos.y),
-                    end = Offset(pos.x + crossLen, pos.y)
-                )
-                drawLine(
-                    color = sparkleColor.copy(alpha = 0.65f),
-                    start = Offset(pos.x, pos.y - crossLen),
-                    end = Offset(pos.x, pos.y + crossLen)
-                )
-                dist += step
-            }
-
-            // A soft metallic ribbon underlay to suggest a continuous strand
-            val ribbonColor = Color(0xFFB0BEC5)
-            // Approximate stroke by drawing many short segments along the path
-            val segment = garlandUnit * 0.55f
-            var d2 = 0f
-            while (d2 < length - segment) {
-                val p0 = measure.getPosition(d2)
-                val p1 = measure.getPosition(d2 + segment)
-                drawLine(
-                    color = ribbonColor.copy(alpha = 0.35f),
-                    start = p0,
-                    end = p1,
-                    strokeWidth = garlandUnit * 0.10f
-                )
-                d2 += segment
-            }
-        }
-
-        // --- 8. Ornaments on Tree ---
-        run {
-            // Festive palette
-            val ornamentColors = listOf(
-                Color(0xFFE53935), // red
-                Color(0xFF8E24AA), // purple
-                Color(0xFF1E88E5), // blue
-                Color(0xFF43A047), // green
-                Color(0xFFFFA000), // amber
-                Color(0xFFFFD54F)  // gold
-            )
-            // Make ornaments smaller
-            val ornamentRadius = layerHeight * 0.14f
-
-            // Hardcoded positions (relative to tree)
-            val fixedOffsets = listOf(
-                Offset(centerX - treeWidth * 0.12f, treeTop + layerHeight * 1.2f),
-                Offset(centerX + treeWidth * 0.08f, treeTop + layerHeight * 1.5f),
-                Offset(centerX - treeWidth * 0.18f, treeTop + layerHeight * 2.2f),
-                Offset(centerX + treeWidth * 0.22f, treeTop + layerHeight * 2.8f),
-                Offset(centerX - treeWidth * 0.25f, treeTop + layerHeight * 3.5f),
-                Offset(centerX + treeWidth * 0.26f, treeTop + layerHeight * 4.0f),
-                Offset(centerX - treeWidth * 0.10f, treeTop + layerHeight * 4.6f),
-                Offset(centerX + treeWidth * 0.05f, treeTop + layerHeight * 5.3f),
-                Offset(centerX - treeWidth * 0.22f, treeTop + layerHeight * 6.0f),
-                Offset(centerX + treeWidth * 0.18f, treeTop + layerHeight * 6.6f)
-            )
-
-            // Deterministic pseudo-random ornaments
-            val randomOffsets = buildList {
-                val count = 24
-                for (i in 0 until count) {
-                    val li = (i * 7 + 3) % numLayers
-                    val progressFromTop = li / (numLayers - 1f)
-                    val layerTopY = treeTop + li * (layerHeight - layerOverlap)
-                    val baseWidth = treeWidth * (0.25f + 0.75f * progressFromTop)
-                    val wobble = (if (li % 2 == 0) 1f else -1f) * baseWidth * 0.06f
-                    val layerWidth = baseWidth + wobble
-                    val left = centerX - layerWidth / 2f + ornamentRadius
-                    val right = centerX + layerWidth / 2f - ornamentRadius
-
-                    val rx01 = ((i * 37 + 11) % 100) / 100f
-                    val ry01 = ((i * 53 + 29) % 100) / 100f
-                    val x = left + (right - left) * rx01
-                    val y = layerTopY + ornamentRadius + (layerHeight - 2 * ornamentRadius) * ry01
-                    add(Offset(x, y))
-                }
-            }
-
-            val ornaments = fixedOffsets + randomOffsets
-
-            // Draw ornaments with gradient, shine, and hook
-            ornaments.forEachIndexed { idx, pos ->
-                val baseColor = ornamentColors[idx % ornamentColors.size]
-
-                // Subtle outer glow
-                drawCircle(
-                    color = baseColor.copy(alpha = 0.20f),
-                    radius = ornamentRadius * 1.6f,
-                    center = pos
-                )
-                drawCircle(
-                    color = baseColor.copy(alpha = 0.30f),
-                    radius = ornamentRadius * 1.15f,
-                    center = pos
-                )
-
-                // Radial gradient for 3D shading (lighter top-left, darker bottom-right)
-                val gradient = Brush.radialGradient(
-                    colors = listOf(
-                        Color.White.copy(alpha = 0.55f),
-                        baseColor,
-                        baseColor.copy(alpha = 0.95f),
-                        Color.Black.copy(alpha = 0.20f)
-                    ),
-                    center = Offset(pos.x - ornamentRadius * 0.25f, pos.y - ornamentRadius * 0.25f),
-                    radius = ornamentRadius * 1.2f
-                )
-                drawCircle(
-                    brush = gradient,
-                    radius = ornamentRadius,
-                    center = pos
-                )
-
-                // Shine highlight (small white circle, offset to top-left)
-                val shineCenter =
-                    Offset(pos.x - ornamentRadius * 0.35f, pos.y - ornamentRadius * 0.35f)
-                drawCircle(
-                    color = Color.White.copy(alpha = 0.85f),
-                    radius = ornamentRadius * 0.22f,
-                    center = shineCenter
-                )
-                drawCircle(
-                    color = Color.White.copy(alpha = 0.55f),
-                    radius = ornamentRadius * 0.12f,
-                    center = Offset(
-                        shineCenter.x + ornamentRadius * 0.10f,
-                        shineCenter.y + ornamentRadius * 0.08f
+                    lineTo(layerLeft * 0.9f + centerX * 0.1f, layerBottom - shadowHeight)
+                    cubicTo(
+                        centerX, layerBottom - shadowHeight * 0.5f,
+                        centerX, layerBottom - shadowHeight * 0.5f,
+                        layerRight * 0.9f + centerX * 0.1f, layerBottom - shadowHeight
                     )
-                )
-
-                // Hook: small cap + curved hook above the ornament
-                val capWidth = ornamentRadius * 0.55f
-                val capHeight = ornamentRadius * 0.18f
-                val capLeft = pos.x - capWidth / 2f
-                val capTop = pos.y - ornamentRadius - capHeight * 0.6f
-                // Cap rectangle
-                drawRect(
-                    color = Color(0xFFB0BEC5),
-                    topLeft = Offset(capLeft, capTop),
-                    size = Size(capWidth, capHeight)
-                )
-                // Hook arc (simple bezier using Path)
-                val hookPath = Path().apply {
-                    moveTo(pos.x, capTop)
-                    // Curve upward and then back down slightly
-                    quadraticTo(
-                        pos.x + ornamentRadius * 0.22f,
-                        capTop - ornamentRadius * 0.35f,
-                        pos.x + ornamentRadius * 0.05f,
-                        capTop - ornamentRadius * 0.05f
-                    )
+                    close()
                 }
                 drawPath(
-                    path = hookPath,
-                    color = Color(0xFF90A4AE),
-                    alpha = 0.9f
+                    path = shadowPath,
+                    color = Color(0xFF1B5E20).copy(alpha = 0.5f)
+                )
+
+                // Subtle lighter highlights (very minimal)
+                if (i % 2 == 0) {
+                    val highlightPath = Path().apply {
+                        val y = layerTop + layerHeight * 0.3f
+                        val hWidth = layerWidth * 0.4f
+                        moveTo(centerX - hWidth * 0.5f, y)
+                        cubicTo(
+                            centerX - hWidth * 0.2f, y - layerHeight * 0.05f,
+                            centerX + hWidth * 0.2f, y - layerHeight * 0.05f,
+                            centerX + hWidth * 0.5f, y
+                        )
+                    }
+                    drawPath(
+                        path = highlightPath,
+                        color = Color(0xFF4CAF50).copy(alpha = 0.25f),
+                        style = Stroke(width = layerHeight * 0.04f, cap = StrokeCap.Round)
+                    )
+                }
+            }
+
+            // --- Candy canes (draw AFTER foliage so they appear in front) ---
+            run {
+                val midX = centerX
+                val leftCaneCenter = Offset(midX - treeWidth * 0.22f, treeTop + layerHeight * 5.4f)
+                val rightCaneCenter = Offset(midX + treeWidth * 0.20f, treeTop + layerHeight * 3.6f)
+                // Smaller size and thinner stripes
+                drawCandyCane(
+                    center = leftCaneCenter,
+                    height = layerHeight * 1.2f,
+                    thickness = treeWidth * 0.035f,
+                    rotationDeg = -16f
+                )
+                drawCandyCane(
+                    center = rightCaneCenter,
+                    height = layerHeight * 1.2f,
+                    thickness = treeWidth * 0.032f,
+                    rotationDeg = 12f
                 )
             }
-        }
-        // End tree sway transform
+
+            // --- 7a. Fairy Lights Wire (thin, wraps like garland) ---
+            run {
+                // Thin wire width
+                val wireWidth = layerHeight * 0.06f
+                val wirePath = Path()
+                val wraps = listOf(2, 4, 6, 8) // distribute wire across layers
+                var started = false
+                for ((idx, layerIndex) in wraps.withIndex()) {
+                    val t = layerIndex / (numLayers - 1f)
+                    val baseWidth = treeWidth * (0.25f + 0.75f * t)
+                    val wobble = (if (layerIndex % 2 == 0) 1f else -1f) * baseWidth * 0.05f
+                    val layerWidth = baseWidth + wobble
+                    val y =
+                        treeTop + layerIndex * (layerHeight - layerOverlap) + layerHeight * 0.52f
+                    val leftX = centerX - layerWidth * 0.50f
+                    val rightX = centerX + layerWidth * 0.50f
+
+                    val amplitude = layerHeight * 0.18f
+                    val cp1 = Offset(centerX - layerWidth * 0.20f, y - amplitude * 0.8f)
+                    val cp2 = Offset(centerX + layerWidth * 0.20f, y + amplitude * 0.8f)
+
+                    if (!started) {
+                        wirePath.moveTo(leftX, y)
+                        started = true
+                    }
+                    // Wave from left to right
+                    wirePath.cubicTo(cp1.x, cp1.y, cp2.x, cp2.y, rightX, y)
+                    // Descent to next wrap
+                    if (idx != wraps.lastIndex) {
+                        val nextT = wraps[idx + 1] / (numLayers - 1f)
+                        val nextBase = treeWidth * (0.25f + 0.75f * nextT)
+                        val nextWobble =
+                            (if (wraps[idx + 1] % 2 == 0) 1f else -1f) * nextBase * 0.05f
+                        val nextWidth = nextBase + nextWobble
+                        val nextY =
+                            treeTop + wraps[idx + 1] * (layerHeight - layerOverlap) + layerHeight * 0.50f
+                        val nextLeftX = centerX - nextWidth * 0.48f
+                        wirePath.cubicTo(
+                            centerX + layerWidth * 0.08f, y + amplitude * 0.5f,
+                            centerX - nextWidth * 0.16f, nextY - amplitude * 0.5f,
+                            nextLeftX, nextY
+                        )
+                    }
+                }
+
+                // Draw the wire: subtle dark color with slight transparency
+                drawPath(
+                    path = wirePath,
+                    color = Color(0xFF37474F).copy(alpha = 0.85f),
+                    style = Stroke(width = wireWidth, cap = StrokeCap.Round)
+                )
+
+                // Add fairy light bulbs along the wire using LightState
+                val measure = androidx.compose.ui.graphics.PathMeasure()
+                measure.setPath(wirePath, false)
+                val length = measure.length
+
+                val bulbStep = layerHeight * 0.45f // denser spacing for a fuller look
+                val baseRadius = layerHeight * 0.10f
+                val palette = listOf(
+                    Color(0xFFFFF6E5), // warm white
+                    Color(0xFFFF5252), // red
+                    Color(0xFF69F0AE), // green
+                    Color(0xFF40C4FF), // cyan-blue
+                    Color(0xFFFFD740), // amber
+                    Color(0xFFEA80FC)  // violet
+                )
+
+                val lights = buildList {
+                    var dist = bulbStep * 0.5f
+                    var idx = 0
+                    while (dist <= length) {
+                        val pos = measure.getPosition(dist)
+                        val color = palette[idx % palette.size]
+                        val phase = ((idx * 37) % 100) / 100f // deterministic phase offset
+                        val jitter = ((idx * 17 + 7) % 100) / 100f // 0..1
+                        val radius = baseRadius * (0.9f + 0.2f * jitter) // subtle size variance
+                        add(
+                            LightState(
+                                position = pos,
+                                color = color,
+                                radius = radius,
+                                isOn = true,
+                                phase = phase
+                            )
+                        )
+                        dist += bulbStep
+                        idx++
+                    }
+                }
+
+                // Render bulbs (static for now; LightState enables future animation)
+                lights.forEach { light ->
+                    // Twinkle factor: 0.0..1.0 based on shared time and per-light phase
+                    val sparkle =
+                        ((sin(2.0 * PI * (twinkleTime.value + light.phase)) + 1.0) * 0.5).toFloat()
+                    val onFactor = if (light.isOn) 1f else 0.15f
+                    val factor = (0.45f + 0.55f * sparkle) * onFactor
+
+                    val glowRadius = light.radius * (2.0f + 0.6f * sparkle)
+                    // Soft outer glow
+                    drawCircle(
+                        color = light.color.copy(alpha = 0.28f * factor),
+                        radius = glowRadius,
+                        center = light.position
+                    )
+                    drawCircle(
+                        color = light.color.copy(alpha = 0.20f * factor),
+                        radius = glowRadius * 0.65f,
+                        center = light.position
+                    )
+                    // Bulb core
+                    drawCircle(
+                        color = light.color.copy(alpha = 0.90f * factor),
+                        radius = light.radius,
+                        center = light.position
+                    )
+                    // Tiny white spec highlight
+                    drawCircle(
+                        color = Color.White.copy(alpha = 0.85f * factor),
+                        radius = light.radius * 0.18f,
+                        center = Offset(
+                            light.position.x - light.radius * 0.25f,
+                            light.position.y - light.radius * 0.25f
+                        )
+                    )
+                }
+            }
+
+            // --- 7b. Garland (tinsel wrapping with bezier path and PathMeasure) ---
+            run {
+                // Size unit for garland elements (similar to ornamentRadius but scoped here)
+                val garlandUnit = layerHeight * 0.14f
+
+                // Build a wavy garland that wraps around several layers of the tree
+                val garlandPath = Path()
+                val wraps = listOf(1, 3, 5, 7) // layers to anchor garland waves
+                var started = false
+                for ((idx, layerIndex) in wraps.withIndex()) {
+                    val t = layerIndex / (numLayers - 1f)
+                    val baseWidth = treeWidth * (0.25f + 0.75f * t)
+                    val wobble = (if (layerIndex % 2 == 0) 1f else -1f) * baseWidth * 0.06f
+                    val layerWidth = baseWidth + wobble
+                    val y =
+                        treeTop + layerIndex * (layerHeight - layerOverlap) + layerHeight * 0.55f
+                    val leftX = centerX - layerWidth * 0.48f
+                    val rightX = centerX + layerWidth * 0.48f
+
+                    val amplitude = layerHeight * 0.30f
+                    val cp1 = Offset(centerX - layerWidth * 0.18f, y - amplitude * 0.8f)
+                    val cp2 = Offset(centerX + layerWidth * 0.18f, y + amplitude * 0.8f)
+
+                    if (!started) {
+                        garlandPath.moveTo(leftX, y)
+                        started = true
+                    }
+                    // Wave from left to right
+                    garlandPath.cubicTo(
+                        cp1.x, cp1.y,
+                        cp2.x, cp2.y,
+                        rightX, y
+                    )
+                    // Small descent between wraps to simulate vertical progression
+                    if (idx != wraps.lastIndex) {
+                        val nextT = wraps[idx + 1] / (numLayers - 1f)
+                        val nextBase = treeWidth * (0.25f + 0.75f * nextT)
+                        val nextWobble =
+                            (if (wraps[idx + 1] % 2 == 0) 1f else -1f) * nextBase * 0.06f
+                        val nextWidth = nextBase + nextWobble
+                        val nextY =
+                            treeTop + wraps[idx + 1] * (layerHeight - layerOverlap) + layerHeight * 0.45f
+                        val nextLeftX = centerX - nextWidth * 0.45f
+                        // Connect downwards with a gentle curve back to the left edge
+                        garlandPath.cubicTo(
+                            centerX + layerWidth * 0.10f, y + amplitude * 0.6f,
+                            centerX - nextWidth * 0.20f, nextY - amplitude * 0.6f,
+                            nextLeftX, nextY
+                        )
+                    }
+                }
+
+                // Tinsel style: stroke-like dots and small sparkles along the path using PathMeasure
+                val measure = androidx.compose.ui.graphics.PathMeasure()
+                measure.setPath(garlandPath, false)
+                val length = measure.length
+
+                // Draw sampled dots
+                val step = garlandUnit * 0.80f
+                var dist = 0f
+                while (dist <= length) {
+                    val pos = measure.getPosition(dist)
+                    val sparkleColor = Color(0xFFE0F7FA)
+                    // Base tinsel dot
+                    drawCircle(
+                        color = sparkleColor.copy(alpha = 0.75f),
+                        radius = garlandUnit * 0.10f,
+                        center = pos
+                    )
+                    // Tiny star-like cross
+                    val crossLen = garlandUnit * 0.16f
+                    drawLine(
+                        color = sparkleColor.copy(alpha = 0.65f),
+                        start = Offset(pos.x - crossLen, pos.y),
+                        end = Offset(pos.x + crossLen, pos.y)
+                    )
+                    drawLine(
+                        color = sparkleColor.copy(alpha = 0.65f),
+                        start = Offset(pos.x, pos.y - crossLen),
+                        end = Offset(pos.x, pos.y + crossLen)
+                    )
+                    dist += step
+                }
+
+                // A soft metallic ribbon underlay to suggest a continuous strand
+                val ribbonColor = Color(0xFFB0BEC5)
+                // Approximate stroke by drawing many short segments along the path
+                val segment = garlandUnit * 0.55f
+                var d2 = 0f
+                while (d2 < length - segment) {
+                    val p0 = measure.getPosition(d2)
+                    val p1 = measure.getPosition(d2 + segment)
+                    drawLine(
+                        color = ribbonColor.copy(alpha = 0.35f),
+                        start = p0,
+                        end = p1,
+                        strokeWidth = garlandUnit * 0.10f
+                    )
+                    d2 += segment
+                }
+            }
+
+            // --- 8. Ornaments on Tree --- (REMOVED)
+
+            // End tree sway transform
         }
 
         // --- 9. Gift Boxes with Ribbons and Bows ---
         run {
-            // Position gifts on snowy ground, centered under tree
-            // Bottom of gifts should be at ground level
-            val giftBottom = groundYAtCenter
-            
+            // Helper to compute ground Y at any X using the hill's cubic bezier
+            fun groundYAt(x: Float): Float {
+                val W = canvasWidth
+                val H = canvasHeight
+                val t = (x / W).coerceIn(0f, 1f)
+                // Bezier points
+                val P0 = Offset(0f, H * 0.85f)
+                val P1 = Offset(W * 0.3f, H * 0.80f)
+                val P2 = Offset(W * 0.7f, H * 0.80f)
+                val P3 = Offset(W, H * 0.85f)
+                // Cubic Bezier formula
+                val y = (1 - t).pow(3) * P0.y +
+                        3 * (1 - t).pow(2) * t * P1.y +
+                        3 * (1 - t) * t * t * P2.y +
+                        t.pow(3) * P3.y
+                return y
+            }
             // Gift 1: Red box on the left
             val gift1X = centerX - treeWidth * 0.28f
             val gift1Width = treeWidth * 0.18f
             val gift1Height = gift1Width * 0.95f
             val gift1Color = Color(0xFFD32F2F)
-            val gift1Top = giftBottom - gift1Height
-            
+            val gift1Bottom = groundYAt(gift1X + gift1Width / 2f)
+            val gift1Top = gift1Bottom - gift1Height
             // Box
             drawRect(
                 color = gift1Color,
@@ -1026,14 +991,13 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
                 radius = bowSize * 0.35f,
                 center = Offset(bowCenterX, bowCenterY)
             )
-            
             // Gift 2: Green box in center (taller)
             val gift2X = centerX - treeWidth * 0.10f
             val gift2Width = treeWidth * 0.20f
             val gift2Height = gift2Width * 1.15f
             val gift2Color = Color(0xFF388E3C)
-            val gift2Top = giftBottom - gift2Height
-            
+            val gift2Bottom = groundYAt(gift2X + (gift2Width * 2f))
+            val gift2Top = gift2Bottom - gift2Height
             // Box
             drawRect(
                 color = gift2Color,
@@ -1071,14 +1035,13 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
                 radius = bow2Size * 0.38f,
                 center = Offset(bow2X, bow2Y)
             )
-            
             // Gift 3: Blue box on the right (smaller, wider)
             val gift3X = centerX + treeWidth * 0.12f
             val gift3Width = treeWidth * 0.22f
             val gift3Height = gift3Width * 0.75f
             val gift3Color = Color(0xFF1976D2)
-            val gift3Top = giftBottom - gift3Height
-            
+            val gift3Bottom = groundYAt(gift3X + gift3Width / 2f)
+            val gift3Top = gift3Bottom - gift3Height
             // Box
             drawRect(
                 color = gift3Color,
@@ -1122,10 +1085,10 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
         run {
             val baseSize = canvasWidth * 0.025f
             val skyHeight = canvasHeight * 0.78f // Keep snowflakes above ground/tree area
-            
+
             // Generate deterministic pseudo-random snowflakes
             val snowflakeCount = 45
-            
+
             for (i in 0 until snowflakeCount) {
                 // Deterministic pseudo-random values using index
                 val xRandom = ((i * 37 + 13) % 100) / 100f
@@ -1135,34 +1098,34 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
                 val alphaRandom = ((i * 31 + 11) % 100) / 100f
                 val branchRandom = ((i * 23 + 5) % 3)
                 val complexityRandom = ((i * 19 + 3) % 3)
-                
+
                 // Position in sky area
                 val x = canvasWidth * (0.02f + 0.96f * xRandom)
                 val y = canvasHeight * (0.02f + 0.76f * yRandom)
-                
+
                 // Size variation (smaller to larger)
                 val size = baseSize * (0.6f + 1.0f * sizeRandom)
-                
+
                 // Vary branches (6, 8, or 12)
                 val branches = when (branchRandom) {
                     0 -> 6
                     1 -> 8
                     else -> 12
                 }
-                
+
                 // Complexity (1-3)
                 val complexity = 1 + complexityRandom
-                
+
                 // Alpha variation for depth
                 val alpha = 0.50f + 0.35f * alphaRandom
-                
+
                 // Color variation (white with slight blue tints)
                 val colorVariant = when {
                     i % 5 == 0 -> Color(0xFFE3F2FD)
                     i % 7 == 0 -> Color(0xFFF0F8FF)
                     else -> Color.White
                 }
-                
+
                 drawSnowflake(
                     center = Offset(x, y),
                     size = size,
