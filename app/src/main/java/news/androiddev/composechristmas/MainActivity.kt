@@ -404,6 +404,92 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
             }
         }
 
+        // --- 2c. Clouds (Animated, soft and fluffy) ---
+        run {
+            // Cloud colors based on sky theme
+            val cloudColor = if (skyTheme == SkyTheme.NightSky) 
+                Color(0xFF2B3A52) else Color(0xFFE1F5FE)
+            val cloudHighlight = if (skyTheme == SkyTheme.NightSky) 
+                Color(0xFF3A4A62) else Color(0xFFFFFFFFF)
+            val cloudShadow = if (skyTheme == SkyTheme.NightSky) 
+                Color(0xFF1A2333) else Color(0xFFB3E5FC)
+            
+            // Base alpha for clouds
+            val baseAlpha = if (skyTheme == SkyTheme.NightSky) 0.6f else 0.7f
+            
+            // Define cloud positions and properties
+            data class CloudData(
+                val x: Float,
+                val y: Float,
+                val scale: Float,
+                val speed: Float,
+                val offset: Float
+            )
+            
+            val clouds = listOf(
+                CloudData(0.15f, 0.12f, 1.0f, 0.3f, 0.0f),
+                CloudData(0.45f, 0.08f, 0.8f, 0.5f, 0.3f),
+                CloudData(0.70f, 0.15f, 1.2f, 0.25f, 0.6f),
+                CloudData(0.25f, 0.25f, 0.9f, 0.4f, 0.8f),
+                CloudData(0.85f, 0.22f, 0.7f, 0.35f, 0.4f),
+                CloudData(0.55f, 0.30f, 1.1f, 0.45f, 0.2f)
+            )
+            
+            clouds.forEach { cloud ->
+                // Animate clouds drifting slowly across the sky
+                val driftOffset = ((skyTime.value * cloud.speed + cloud.offset) % 1f) * canvasWidth * 0.15f
+                val cloudX = canvasWidth * cloud.x + driftOffset
+                val cloudY = canvasHeight * cloud.y
+                val cloudScale = cloud.scale
+                
+                // Base cloud size
+                val baseRadius = canvasWidth * 0.06f * cloudScale
+                
+                // Draw fluffy cloud using overlapping circles
+                // Main body circles
+                listOf(
+                    Offset(cloudX - baseRadius * 0.6f, cloudY) to baseRadius * 0.85f,
+                    Offset(cloudX - baseRadius * 0.2f, cloudY - baseRadius * 0.3f) to baseRadius * 0.95f,
+                    Offset(cloudX + baseRadius * 0.3f, cloudY - baseRadius * 0.2f) to baseRadius * 1.0f,
+                    Offset(cloudX + baseRadius * 0.7f, cloudY + baseRadius * 0.1f) to baseRadius * 0.75f,
+                    Offset(cloudX, cloudY + baseRadius * 0.2f) to baseRadius * 0.8f
+                ).forEach { (center, radius) ->
+                    // Shadow/darker bottom part
+                    drawCircle(
+                        color = cloudShadow.copy(alpha = baseAlpha * 0.3f),
+                        radius = radius * 1.05f,
+                        center = Offset(center.x, center.y + radius * 0.1f)
+                    )
+                    
+                    // Main cloud body
+                    drawCircle(
+                        color = cloudColor.copy(alpha = baseAlpha),
+                        radius = radius,
+                        center = center
+                    )
+                    
+                    // Highlight on top
+                    drawCircle(
+                        color = cloudHighlight.copy(alpha = baseAlpha * 0.4f),
+                        radius = radius * 0.6f,
+                        center = Offset(center.x - radius * 0.2f, center.y - radius * 0.3f)
+                    )
+                }
+                
+                // Add some smaller puff details
+                listOf(
+                    Offset(cloudX - baseRadius * 0.4f, cloudY - baseRadius * 0.15f) to baseRadius * 0.5f,
+                    Offset(cloudX + baseRadius * 0.5f, cloudY) to baseRadius * 0.55f
+                ).forEach { (center, radius) ->
+                    drawCircle(
+                        color = cloudColor.copy(alpha = baseAlpha * 0.8f),
+                        radius = radius,
+                        center = center
+                    )
+                }
+            }
+        }
+
         // --- 3. Snowy Hill (Ground) ---
         // Matches SVG: M 0 H L 0 0.85H C 0.3W 0.80H, 0.7W 0.80H, W 0.85H L W H Z
         val hillPath = Path().apply {
@@ -458,11 +544,17 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
             val outerRadius = treeWidth * 0.10f
             val innerRadius = outerRadius * 0.45f
 
-            // Animation factors for star pulse and subtle rotation
+            // Enhanced animation factors for star pulse and subtle rotation
+            // Primary pulse - gentle breathing effect
             val starPulse =
-                ((sin(2.0 * PI * (twinkleTime.value * 1.20 + 0.05)) + 1.0) * 0.5).toFloat()
-            val starScale = 0.96f + 0.08f * starPulse
-            val starRot = (sin(2.0 * PI * (twinkleTime.value * 0.60 + 0.15)) * 2.0).toFloat()
+                ((sin(2.0 * PI * (twinkleTime.value * 0.8 + 0.05)) + 1.0) * 0.5).toFloat()
+            // Secondary faster pulse for glow intensity
+            val glowPulse =
+                ((sin(2.0 * PI * (twinkleTime.value * 1.5 + 0.2)) + 1.0) * 0.5).toFloat()
+            // Smooth scaling with gentle pulse (0.92 to 1.10)
+            val starScale = 0.92f + 0.18f * starPulse
+            // Very subtle rotation
+            val starRot = (sin(2.0 * PI * (twinkleTime.value * 0.4 + 0.15)) * 1.5).toFloat()
 
             // Build a 5-point star path
             val starPath = Path().apply {
@@ -500,20 +592,40 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
                 rotate(starRot, pivot = starCenter)
                 scale(scaleX = starScale, scaleY = starScale, pivot = starCenter)
             }) {
-                // Soft glow around the star, animated alpha and radius
+                // Multi-layer pulsing glow around the star
+                // Outermost glow - very soft, large radius
                 drawCircle(
-                    color = Color(0xFFFFF8E1).copy(alpha = 0.28f + 0.20f * starPulse),
-                    radius = outerRadius * (2.3f + 0.5f * starPulse),
+                    color = Color(0xFFFFF8E1).copy(alpha = 0.15f + 0.25f * glowPulse),
+                    radius = outerRadius * (3.0f + 0.8f * glowPulse),
                     center = starCenter
                 )
+                // Middle glow layer
                 drawCircle(
-                    color = Color(0xFFFFFDE7).copy(alpha = 0.18f + 0.14f * starPulse),
-                    radius = outerRadius * (1.4f + 0.3f * starPulse),
+                    color = Color(0xFFFFFDE7).copy(alpha = 0.25f + 0.30f * starPulse),
+                    radius = outerRadius * (2.0f + 0.6f * starPulse),
+                    center = starCenter
+                )
+                // Inner bright glow
+                drawCircle(
+                    color = Color(0xFFFFEB3B).copy(alpha = 0.35f + 0.35f * glowPulse),
+                    radius = outerRadius * (1.2f + 0.4f * starPulse),
+                    center = starCenter
+                )
+                // Core bright glow
+                drawCircle(
+                    color = Color(0xFFFFF59D).copy(alpha = 0.50f + 0.30f * glowPulse),
+                    radius = outerRadius * (0.8f + 0.2f * starPulse),
                     center = starCenter
                 )
 
                 // Draw the star with the gradient
                 drawPath(path = starPath, brush = starGradient)
+                
+                // Add a bright inner highlight that pulses
+                drawPath(
+                    path = starPath,
+                    color = Color.White.copy(alpha = 0.15f + 0.25f * glowPulse)
+                )
             }
         }
 
@@ -874,39 +986,113 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
                 }
             }
 
-            // Render bulbs (static for now; LightState enables future animation)
+            // Render bulbs with animated twinkling and color transitions
             lights.forEach { light ->
                 // Twinkle factor: 0.0..1.0 based on shared time and per-light phase
+                // Use faster, more varied twinkling patterns
+                val twinkleSpeed = 1.5f + light.phase * 0.8f
                 val sparkle =
-                    ((sin(2.0 * PI * (twinkleTime.value + light.phase)) + 1.0) * 0.5).toFloat()
-                val onFactor = if (light.isOn) 1f else 0.15f
-                val factor = (0.45f + 0.55f * sparkle) * onFactor
-
-                val glowRadius = light.radius * (2.0f + 0.6f * sparkle)
-                // Soft outer glow
+                    ((sin(2.0 * PI * (twinkleTime.value * twinkleSpeed + light.phase)) + 1.0) * 0.5).toFloat()
+                
+                // Some lights blink on/off more dramatically
+                val blinkThreshold = 0.15f + light.phase * 0.15f
+                val isLightOn = sparkle > blinkThreshold
+                val onFactor = if (isLightOn) 1f else 0.1f
+                
+                // Enhanced sparkle intensity
+                val intensityFactor = (0.3f + 0.7f * sparkle) * onFactor
+                
+                // Color cycling: shift through a rainbow spectrum over time
+                val colorShift = (twinkleTime.value * 0.3f + light.phase) % 1f
+                val animatedColor = when {
+                    colorShift < 0.17f -> {
+                        // Transition from original to red
+                        androidx.compose.ui.graphics.lerp(
+                            light.color,
+                            Color(0xFFFF5252),
+                            (colorShift / 0.17f)
+                        )
+                    }
+                    colorShift < 0.34f -> {
+                        // Transition from red to amber
+                        androidx.compose.ui.graphics.lerp(
+                            Color(0xFFFF5252),
+                            Color(0xFFFFD740),
+                            ((colorShift - 0.17f) / 0.17f)
+                        )
+                    }
+                    colorShift < 0.50f -> {
+                        // Transition from amber to green
+                        androidx.compose.ui.graphics.lerp(
+                            Color(0xFFFFD740),
+                            Color(0xFF69F0AE),
+                            ((colorShift - 0.34f) / 0.16f)
+                        )
+                    }
+                    colorShift < 0.67f -> {
+                        // Transition from green to cyan
+                        androidx.compose.ui.graphics.lerp(
+                            Color(0xFF69F0AE),
+                            Color(0xFF40C4FF),
+                            ((colorShift - 0.50f) / 0.17f)
+                        )
+                    }
+                    colorShift < 0.84f -> {
+                        // Transition from cyan to violet
+                        androidx.compose.ui.graphics.lerp(
+                            Color(0xFF40C4FF),
+                            Color(0xFFEA80FC),
+                            ((colorShift - 0.67f) / 0.17f)
+                        )
+                    }
+                    else -> {
+                        // Transition from violet back to original
+                        androidx.compose.ui.graphics.lerp(
+                            Color(0xFFEA80FC),
+                            light.color,
+                            ((colorShift - 0.84f) / 0.16f)
+                        )
+                    }
+                }
+                
+                // Dynamic glow radius based on sparkle
+                val glowRadius = light.radius * (1.8f + 1.2f * sparkle)
+                
+                // Outer glow (largest, softest)
                 drawCircle(
-                    color = light.color.copy(alpha = 0.28f * factor),
+                    color = animatedColor.copy(alpha = 0.35f * intensityFactor),
                     radius = glowRadius,
                     center = light.position
                 )
+                
+                // Middle glow
                 drawCircle(
-                    color = light.color.copy(alpha = 0.20f * factor),
+                    color = animatedColor.copy(alpha = 0.50f * intensityFactor),
                     radius = glowRadius * 0.65f,
                     center = light.position
                 )
-                // Bulb core
+                
+                // Inner bright glow
                 drawCircle(
-                    color = light.color.copy(alpha = 0.90f * factor),
+                    color = animatedColor.copy(alpha = 0.75f * intensityFactor),
+                    radius = glowRadius * 0.40f,
+                    center = light.position
+                )
+                
+                // Bulb core (solid when on, dim when off)
+                drawCircle(
+                    color = animatedColor.copy(alpha = 0.95f * intensityFactor),
                     radius = light.radius,
                     center = light.position
                 )
-                // Tiny white spec highlight
+                
+                // Animated highlight spec (brighter when sparkling)
                 drawCircle(
-                    color = Color.White.copy(alpha = 0.85f * factor),
-                    radius = light.radius * 0.18f,
+                    color = Color.White.copy(alpha = (0.90f * sparkle) * onFactor),
+                    radius = light.radius * 0.25f,
                     center = Offset(
-                        light.position.x - light.radius * 0.25f,
-                        light.position.y - light.radius * 0.25f
+                        light.position.x - light.radius * 0.22f,
+                        light.position.y - light.radius * 0.22f
                     )
                 )
             }
@@ -1803,12 +1989,12 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
             )
         }
 
-        // --- 10. Snowfall (Day 16: Static snowflakes across sky) ---
+        // --- 10. Snowfall (Day 16: Animated falling snowflakes) ---
         run {
             val baseSize = canvasWidth * 0.025f
             val skyHeight = canvasHeight * 0.78f // Keep snowflakes above ground/tree area
 
-            // Generate deterministic pseudo-random snowflakes
+            // Generate deterministic pseudo-random snowflakes with animation
             val snowflakeCount = 45
 
             for (i in 0 until snowflakeCount) {
@@ -1821,9 +2007,69 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
                 val branchRandom = ((i * 23 + 5) % 3)
                 val complexityRandom = ((i * 19 + 3) % 3)
 
-                // Position in sky area
-                val x = canvasWidth * (0.02f + 0.96f * xRandom)
-                val y = canvasHeight * (0.02f + 0.76f * yRandom)
+                // Cloud positions (matching the clouds defined earlier)
+                val cloudPositions = listOf(
+                    Pair(0.15f, 0.12f),
+                    Pair(0.45f, 0.08f),
+                    Pair(0.70f, 0.15f),
+                    Pair(0.25f, 0.25f),
+                    Pair(0.85f, 0.22f),
+                    Pair(0.55f, 0.30f)
+                )
+                
+                // Assign each snowflake to a cloud
+                val cloudIndex = i % cloudPositions.size
+                val (cloudXRatio, cloudYRatio) = cloudPositions[cloudIndex]
+                
+                // Cloud drift animation (matching cloud movement)
+                val cloudSpeed = when (cloudIndex) {
+                    0 -> 0.3f
+                    1 -> 0.5f
+                    2 -> 0.25f
+                    3 -> 0.4f
+                    4 -> 0.35f
+                    else -> 0.45f
+                }
+                val cloudOffset = when (cloudIndex) {
+                    0 -> 0.0f
+                    1 -> 0.3f
+                    2 -> 0.6f
+                    3 -> 0.8f
+                    4 -> 0.4f
+                    else -> 0.2f
+                }
+                
+                val driftOffset = ((skyTime.value * cloudSpeed + cloudOffset) % 1f) * canvasWidth * 0.15f
+                
+                // Base position - starts from cloud with some spread
+                val cloudCenterX = canvasWidth * cloudXRatio + driftOffset
+                val cloudCenterY = canvasHeight * cloudYRatio
+                val baseRadius = canvasWidth * 0.06f
+                
+                // Spread snowflakes around the cloud area
+                val spreadX = baseRadius * 2.5f * (xRandom - 0.5f)
+                val baseX = cloudCenterX + spreadX
+
+                // Falling animation - each snowflake has different fall speed and pattern
+                // Fall speed varies per snowflake (0.3 to 1.0 relative speed)
+                val fallSpeed = 0.3f + 0.7f * sizeRandom
+                // Use skyTime for continuous falling motion
+                val fallProgress = (skyTime.value + yRandom) % 1f
+                
+                // Vertical position - starts from cloud bottom and falls to ground
+                val startY = cloudCenterY + baseRadius * 0.5f
+                val endY = canvasHeight * 0.85f
+                val animatedY = startY + (endY - startY) * fallProgress
+                
+                // Horizontal drift - gentle side-to-side motion as it falls
+                val driftAmount = canvasWidth * 0.06f * (xRandom - 0.5f)
+                val driftPhase = (twinkleTime.value * (0.4f + 0.3f * xRandom) + i * 0.1f) % 1f
+                val drift = driftAmount * sin(2.0 * PI * driftPhase).toFloat()
+                val animatedX = baseX + drift
+                
+                // Gentle rotation as it falls
+                val rotationSpeed = 30f * (xRandom - 0.5f) // -15 to +15 degrees per cycle
+                val animatedRotation = rotRandom + rotationSpeed * twinkleTime.value
 
                 // Size variation (smaller to larger)
                 val size = baseSize * (0.6f + 1.0f * sizeRandom)
@@ -1838,8 +2084,11 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
                 // Complexity (1-3)
                 val complexity = 1 + complexityRandom
 
-                // Alpha variation for depth
-                val alpha = 0.50f + 0.35f * alphaRandom
+                // Alpha variation for depth - fade in/out at edges
+                val baseAlpha = 0.50f + 0.35f * alphaRandom
+                val fadeIn = (fallProgress * 5f).coerceAtMost(1f)
+                val fadeOut = ((1f - fallProgress) * 5f).coerceAtMost(1f)
+                val alpha = baseAlpha * fadeIn * fadeOut
 
                 // Color variation (white with slight blue tints)
                 val colorVariant = when {
@@ -1848,15 +2097,18 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
                     else -> Color.White
                 }
 
-                drawSnowflake(
-                    center = Offset(x, y),
-                    size = size,
-                    branches = branches,
-                    complexity = complexity,
-                    color = colorVariant,
-                    alpha = alpha,
-                    rotation = rotRandom.toFloat()
-                )
+                // Only draw if within visible bounds
+                if (animatedY > -size * 2 && animatedY < canvasHeight + size * 2) {
+                    drawSnowflake(
+                        center = Offset(animatedX, animatedY),
+                        size = size,
+                        branches = branches,
+                        complexity = complexity,
+                        color = colorVariant,
+                        alpha = alpha,
+                        rotation = animatedRotation
+                    )
+                }
             }
         }
     }
