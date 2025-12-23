@@ -6,10 +6,16 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -172,6 +178,10 @@ private fun DrawScope.drawSnowflake(
 
 @Composable
 fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.NightSky) {
+    // State for light interaction (Day 22)
+    // LightMode: 0 = rainbow cycling, 1 = original colors only, 2 = lights off
+    var lightMode by remember { mutableStateOf(0) }
+    
     // Twinkle animation time source (0..1 repeating)
     val twinkleTransition = rememberInfiniteTransition(label = "twinkle")
     val twinkleTime = twinkleTransition.animateFloat(
@@ -214,7 +224,17 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
         label = "starTwinkleTime"
     )
 
-    Canvas(modifier = modifier.fillMaxSize()) {
+    Canvas(modifier = modifier
+        .fillMaxSize()
+        .pointerInput(Unit) {
+            detectTapGestures(
+                onTap = {
+                    // Cycle through light modes: 0 -> 1 -> 2 -> 0
+                    lightMode = (lightMode + 1) % 3
+                }
+            )
+        }
+    ) {
         val canvasWidth = size.width
         val canvasHeight = size.height
 
@@ -988,6 +1008,17 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
 
             // Render bulbs with animated twinkling and color transitions
             lights.forEach { light ->
+                // Check if lights should be off (lightMode == 2)
+                if (lightMode == 2) {
+                    // Draw very dim bulbs to show they're off
+                    drawCircle(
+                        color = Color.Gray.copy(alpha = 0.15f),
+                        radius = light.radius,
+                        center = light.position
+                    )
+                    return@forEach
+                }
+                
                 // Twinkle factor: 0.0..1.0 based on shared time and per-light phase
                 // Use faster, more varied twinkling patterns
                 val twinkleSpeed = 1.5f + light.phase * 0.8f
@@ -1002,56 +1033,65 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
                 // Enhanced sparkle intensity
                 val intensityFactor = (0.3f + 0.7f * sparkle) * onFactor
                 
-                // Color cycling: shift through a rainbow spectrum over time
-                val colorShift = (twinkleTime.value * 0.3f + light.phase) % 1f
-                val animatedColor = when {
-                    colorShift < 0.17f -> {
-                        // Transition from original to red
-                        androidx.compose.ui.graphics.lerp(
-                            light.color,
-                            Color(0xFFFF5252),
-                            (colorShift / 0.17f)
-                        )
-                    }
-                    colorShift < 0.34f -> {
-                        // Transition from red to amber
-                        androidx.compose.ui.graphics.lerp(
-                            Color(0xFFFF5252),
-                            Color(0xFFFFD740),
-                            ((colorShift - 0.17f) / 0.17f)
-                        )
-                    }
-                    colorShift < 0.50f -> {
-                        // Transition from amber to green
-                        androidx.compose.ui.graphics.lerp(
-                            Color(0xFFFFD740),
-                            Color(0xFF69F0AE),
-                            ((colorShift - 0.34f) / 0.16f)
-                        )
-                    }
-                    colorShift < 0.67f -> {
-                        // Transition from green to cyan
-                        androidx.compose.ui.graphics.lerp(
-                            Color(0xFF69F0AE),
-                            Color(0xFF40C4FF),
-                            ((colorShift - 0.50f) / 0.17f)
-                        )
-                    }
-                    colorShift < 0.84f -> {
-                        // Transition from cyan to violet
-                        androidx.compose.ui.graphics.lerp(
-                            Color(0xFF40C4FF),
-                            Color(0xFFEA80FC),
-                            ((colorShift - 0.67f) / 0.17f)
-                        )
+                // Determine color based on light mode
+                val animatedColor = when (lightMode) {
+                    1 -> {
+                        // Mode 1: Original colors only (no cycling)
+                        light.color
                     }
                     else -> {
-                        // Transition from violet back to original
-                        androidx.compose.ui.graphics.lerp(
-                            Color(0xFFEA80FC),
-                            light.color,
-                            ((colorShift - 0.84f) / 0.16f)
-                        )
+                        // Mode 0: Rainbow color cycling (original behavior)
+                        val colorShift = (twinkleTime.value * 0.3f + light.phase) % 1f
+                        when {
+                            colorShift < 0.17f -> {
+                                // Transition from original to red
+                                androidx.compose.ui.graphics.lerp(
+                                    light.color,
+                                    Color(0xFFFF5252),
+                                    (colorShift / 0.17f)
+                                )
+                            }
+                            colorShift < 0.34f -> {
+                                // Transition from red to amber
+                                androidx.compose.ui.graphics.lerp(
+                                    Color(0xFFFF5252),
+                                    Color(0xFFFFD740),
+                                    ((colorShift - 0.17f) / 0.17f)
+                                )
+                            }
+                            colorShift < 0.50f -> {
+                                // Transition from amber to green
+                                androidx.compose.ui.graphics.lerp(
+                                    Color(0xFFFFD740),
+                                    Color(0xFF69F0AE),
+                                    ((colorShift - 0.34f) / 0.16f)
+                                )
+                            }
+                            colorShift < 0.67f -> {
+                                // Transition from green to cyan
+                                androidx.compose.ui.graphics.lerp(
+                                    Color(0xFF69F0AE),
+                                    Color(0xFF40C4FF),
+                                    ((colorShift - 0.50f) / 0.17f)
+                                )
+                            }
+                            colorShift < 0.84f -> {
+                                // Transition from cyan to violet
+                                androidx.compose.ui.graphics.lerp(
+                                    Color(0xFF40C4FF),
+                                    Color(0xFFEA80FC),
+                                    ((colorShift - 0.67f) / 0.17f)
+                                )
+                            }
+                            else -> {
+                                // Transition from violet back to original
+                                androidx.compose.ui.graphics.lerp(
+                                    Color(0xFFEA80FC),
+                                    light.color,
+                                    ((colorShift - 0.84f) / 0.16f)
+                                )
+                            }
+                        }
                     }
                 }
                 
