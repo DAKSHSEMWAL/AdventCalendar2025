@@ -1,10 +1,15 @@
 package news.androiddev.composechristmas
 
-import android.R.attr.startX
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.fillMaxSize
@@ -15,13 +20,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -30,12 +28,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.asAndroidPath
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.graphics.asAndroidPath
 import news.androiddev.composechristmas.ui.theme.ComposeChristmasTheme
 import kotlin.math.PI
 import kotlin.math.pow
@@ -85,6 +84,183 @@ private fun DrawScope.drawDropShadow(
             size = Size(layerWidth, layerHeight)
         )
     }
+}
+
+// Day 24: Snowman drawing helper
+private fun DrawScope.drawSnowman(
+    center: Offset,
+    size: Float
+) {
+    // Shadow for snowman
+    drawOval(
+        color = Color.Black.copy(alpha = 0.12f),
+        topLeft = Offset(center.x - size * 0.6f, center.y + size * 1.8f),
+        size = Size(size * 1.2f, size * 0.3f)
+    )
+    
+    // Bottom snowball (largest)
+    drawCircle(
+        brush = Brush.radialGradient(
+            colors = listOf(Color.White, Color(0xFFF5F5F5), Color(0xFFE0E0E0)),
+            center = Offset(center.x - size * 0.08f, center.y + size * 1.2f),
+            radius = size * 0.5f
+        ),
+        radius = size * 0.5f,
+        center = Offset(center.x, center.y + size * 1.2f)
+    )
+    
+    // Middle snowball
+    drawCircle(
+        brush = Brush.radialGradient(
+            colors = listOf(Color.White, Color(0xFFF5F5F5), Color(0xFFE0E0E0)),
+            center = Offset(center.x - size * 0.06f, center.y + size * 0.5f),
+            radius = size * 0.38f
+        ),
+        radius = size * 0.38f,
+        center = Offset(center.x, center.y + size * 0.5f)
+    )
+    
+    // Head snowball (smallest)
+    drawCircle(
+        brush = Brush.radialGradient(
+            colors = listOf(Color.White, Color(0xFFF5F5F5), Color(0xFFE8E8E8)),
+            center = Offset(center.x - size * 0.05f, center.y),
+            radius = size * 0.28f
+        ),
+        radius = size * 0.28f,
+        center = Offset(center.x, center.y)
+    )
+    
+    // Carrot nose
+    val nosePath = Path().apply {
+        moveTo(center.x, center.y + size * 0.05f)
+        lineTo(center.x + size * 0.35f, center.y + size * 0.02f)
+        lineTo(center.x, center.y + size * 0.12f)
+        close()
+    }
+    drawPath(
+        path = nosePath,
+        brush = Brush.linearGradient(
+            colors = listOf(Color(0xFFFF6F00), Color(0xFFFF9800)),
+            start = Offset(center.x, center.y + size * 0.05f),
+            end = Offset(center.x + size * 0.35f, center.y + size * 0.02f)
+        )
+    )
+    
+    // Eyes (coal)
+    drawCircle(
+        color = Color(0xFF212121),
+        radius = size * 0.06f,
+        center = Offset(center.x - size * 0.12f, center.y - size * 0.08f)
+    )
+    drawCircle(
+        color = Color(0xFF212121),
+        radius = size * 0.06f,
+        center = Offset(center.x + size * 0.12f, center.y - size * 0.08f)
+    )
+    
+    // Smile (coal buttons in arc)
+    for (i in 0..4) {
+        val angle = -30f + i * 15f
+        val rad = angle * PI.toFloat() / 180f
+        val smileX = center.x + sin(rad) * size * 0.15f
+        val smileY = center.y + size * 0.18f + kotlin.math.cos(rad) * size * 0.08f
+        drawCircle(
+            color = Color(0xFF212121),
+            radius = size * 0.04f,
+            center = Offset(smileX, smileY)
+        )
+    }
+    
+    // Stick arms
+    // Left arm
+    drawLine(
+        color = Color(0xFF5D4037),
+        start = Offset(center.x - size * 0.35f, center.y + size * 0.4f),
+        end = Offset(center.x - size * 0.75f, center.y + size * 0.1f),
+        strokeWidth = size * 0.05f,
+        cap = StrokeCap.Round
+    )
+    // Left hand branches
+    drawLine(
+        color = Color(0xFF5D4037),
+        start = Offset(center.x - size * 0.75f, center.y + size * 0.1f),
+        end = Offset(center.x - size * 0.85f, center.y + size * 0.0f),
+        strokeWidth = size * 0.03f,
+        cap = StrokeCap.Round
+    )
+    drawLine(
+        color = Color(0xFF5D4037),
+        start = Offset(center.x - size * 0.75f, center.y + size * 0.1f),
+        end = Offset(center.x - size * 0.90f, center.y + size * 0.15f),
+        strokeWidth = size * 0.03f,
+        cap = StrokeCap.Round
+    )
+    
+    // Right arm
+    drawLine(
+        color = Color(0xFF5D4037),
+        start = Offset(center.x + size * 0.35f, center.y + size * 0.4f),
+        end = Offset(center.x + size * 0.75f, center.y + size * 0.15f),
+        strokeWidth = size * 0.05f,
+        cap = StrokeCap.Round
+    )
+    // Right hand branches
+    drawLine(
+        color = Color(0xFF5D4037),
+        start = Offset(center.x + size * 0.75f, center.y + size * 0.15f),
+        end = Offset(center.x + size * 0.88f, center.y + size * 0.05f),
+        strokeWidth = size * 0.03f,
+        cap = StrokeCap.Round
+    )
+    drawLine(
+        color = Color(0xFF5D4037),
+        start = Offset(center.x + size * 0.75f, center.y + size * 0.15f),
+        end = Offset(center.x + size * 0.85f, center.y + size * 0.25f),
+        strokeWidth = size * 0.03f,
+        cap = StrokeCap.Round
+    )
+    
+    // Top hat
+    // Hat brim
+    drawRect(
+        color = Color(0xFF212121),
+        topLeft = Offset(center.x - size * 0.35f, center.y - size * 0.32f),
+        size = Size(size * 0.7f, size * 0.08f)
+    )
+    // Hat top
+    drawRect(
+        brush = Brush.verticalGradient(
+            colors = listOf(Color(0xFF212121), Color(0xFF424242)),
+            startY = center.y - size * 0.68f,
+            endY = center.y - size * 0.32f
+        ),
+        topLeft = Offset(center.x - size * 0.25f, center.y - size * 0.68f),
+        size = Size(size * 0.5f, size * 0.36f)
+    )
+    // Hat band
+    drawRect(
+        color = Color(0xFFD32F2F),
+        topLeft = Offset(center.x - size * 0.25f, center.y - size * 0.40f),
+        size = Size(size * 0.5f, size * 0.06f)
+    )
+    
+    // Buttons on middle body (coal)
+    drawCircle(
+        color = Color(0xFF212121),
+        radius = size * 0.05f,
+        center = Offset(center.x, center.y + size * 0.35f)
+    )
+    drawCircle(
+        color = Color(0xFF212121),
+        radius = size * 0.05f,
+        center = Offset(center.x, center.y + size * 0.55f)
+    )
+    drawCircle(
+        color = Color(0xFF212121),
+        radius = size * 0.05f,
+        center = Offset(center.x, center.y + size * 0.75f)
+    )
 }
 
 // Day 15: Snowflake drawing helper with customizable parameters
@@ -181,7 +357,7 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
     // State for light interaction (Day 22)
     // LightMode: 0 = rainbow cycling, 1 = original colors only, 2 = lights off
     var lightMode by remember { mutableStateOf(0) }
-    
+
     // Twinkle animation time source (0..1 repeating)
     val twinkleTransition = rememberInfiniteTransition(label = "twinkle")
     val twinkleTime = twinkleTransition.animateFloat(
@@ -224,16 +400,17 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
         label = "starTwinkleTime"
     )
 
-    Canvas(modifier = modifier
-        .fillMaxSize()
-        .pointerInput(Unit) {
-            detectTapGestures(
-                onTap = {
-                    // Cycle through light modes: 0 -> 1 -> 2 -> 0
-                    lightMode = (lightMode + 1) % 3
-                }
-            )
-        }
+    Canvas(
+        modifier = modifier
+            .fillMaxSize()
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onTap = {
+                        // Cycle through light modes: 0 -> 1 -> 2 -> 0
+                        lightMode = (lightMode + 1) % 3
+                    }
+                )
+            }
     ) {
         val canvasWidth = size.width
         val canvasHeight = size.height
@@ -258,10 +435,12 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
                 val blendedColors = nightColors.zip(dawnColors).map { (night, dawn) ->
                     androidx.compose.ui.graphics.lerp(night, dawn, skyPhase.toFloat())
                 }
-                Brush.verticalGradient(
-                    colors = blendedColors,
-                    startY = 0f,
-                    endY = canvasHeight
+                Brush.linearGradient(
+                    0.0f to blendedColors[0],
+                    0.5f to blendedColors[1],
+                    1.0f to blendedColors[2],
+                    start = Offset(0f, 0f),
+                    end = Offset(0f, canvasHeight)
                 )
             }
 
@@ -280,10 +459,12 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
                 val blendedColors = morningColors.zip(midDayColors).map { (morning, midDay) ->
                     androidx.compose.ui.graphics.lerp(morning, midDay, skyPhase.toFloat())
                 }
-                Brush.verticalGradient(
-                    colors = blendedColors,
-                    startY = 0f,
-                    endY = canvasHeight
+                Brush.linearGradient(
+                    0.0f to blendedColors[0],
+                    0.5f to blendedColors[1],
+                    1.0f to blendedColors[2],
+                    start = Offset(0f, 0f),
+                    end = Offset(0f, canvasHeight)
                 )
             }
         }
@@ -427,16 +608,16 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
         // --- 2c. Clouds (Animated, soft and fluffy) ---
         run {
             // Cloud colors based on sky theme
-            val cloudColor = if (skyTheme == SkyTheme.NightSky) 
+            val cloudColor = if (skyTheme == SkyTheme.NightSky)
                 Color(0xFF2B3A52) else Color(0xFFE1F5FE)
-            val cloudHighlight = if (skyTheme == SkyTheme.NightSky) 
+            val cloudHighlight = if (skyTheme == SkyTheme.NightSky)
                 Color(0xFF3A4A62) else Color(0xFFFFFFFFF)
-            val cloudShadow = if (skyTheme == SkyTheme.NightSky) 
+            val cloudShadow = if (skyTheme == SkyTheme.NightSky)
                 Color(0xFF1A2333) else Color(0xFFB3E5FC)
-            
+
             // Base alpha for clouds
             val baseAlpha = if (skyTheme == SkyTheme.NightSky) 0.6f else 0.7f
-            
+
             // Define cloud positions and properties
             data class CloudData(
                 val x: Float,
@@ -445,7 +626,7 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
                 val speed: Float,
                 val offset: Float
             )
-            
+
             val clouds = listOf(
                 CloudData(0.15f, 0.12f, 1.0f, 0.3f, 0.0f),
                 CloudData(0.45f, 0.08f, 0.8f, 0.5f, 0.3f),
@@ -454,24 +635,34 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
                 CloudData(0.85f, 0.22f, 0.7f, 0.35f, 0.4f),
                 CloudData(0.55f, 0.30f, 1.1f, 0.45f, 0.2f)
             )
-            
+
             clouds.forEach { cloud ->
                 // Animate clouds drifting slowly across the sky
-                val driftOffset = ((skyTime.value * cloud.speed + cloud.offset) % 1f) * canvasWidth * 0.15f
+                val driftOffset =
+                    ((skyTime.value * cloud.speed + cloud.offset) % 1f) * canvasWidth * 0.15f
                 val cloudX = canvasWidth * cloud.x + driftOffset
                 val cloudY = canvasHeight * cloud.y
                 val cloudScale = cloud.scale
-                
+
                 // Base cloud size
                 val baseRadius = canvasWidth * 0.06f * cloudScale
-                
+
                 // Draw fluffy cloud using overlapping circles
                 // Main body circles
                 listOf(
                     Offset(cloudX - baseRadius * 0.6f, cloudY) to baseRadius * 0.85f,
-                    Offset(cloudX - baseRadius * 0.2f, cloudY - baseRadius * 0.3f) to baseRadius * 0.95f,
-                    Offset(cloudX + baseRadius * 0.3f, cloudY - baseRadius * 0.2f) to baseRadius * 1.0f,
-                    Offset(cloudX + baseRadius * 0.7f, cloudY + baseRadius * 0.1f) to baseRadius * 0.75f,
+                    Offset(
+                        cloudX - baseRadius * 0.2f,
+                        cloudY - baseRadius * 0.3f
+                    ) to baseRadius * 0.95f,
+                    Offset(
+                        cloudX + baseRadius * 0.3f,
+                        cloudY - baseRadius * 0.2f
+                    ) to baseRadius * 1.0f,
+                    Offset(
+                        cloudX + baseRadius * 0.7f,
+                        cloudY + baseRadius * 0.1f
+                    ) to baseRadius * 0.75f,
                     Offset(cloudX, cloudY + baseRadius * 0.2f) to baseRadius * 0.8f
                 ).forEach { (center, radius) ->
                     // Shadow/darker bottom part
@@ -480,14 +671,14 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
                         radius = radius * 1.05f,
                         center = Offset(center.x, center.y + radius * 0.1f)
                     )
-                    
+
                     // Main cloud body
                     drawCircle(
                         color = cloudColor.copy(alpha = baseAlpha),
                         radius = radius,
                         center = center
                     )
-                    
+
                     // Highlight on top
                     drawCircle(
                         color = cloudHighlight.copy(alpha = baseAlpha * 0.4f),
@@ -495,10 +686,13 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
                         center = Offset(center.x - radius * 0.2f, center.y - radius * 0.3f)
                     )
                 }
-                
+
                 // Add some smaller puff details
                 listOf(
-                    Offset(cloudX - baseRadius * 0.4f, cloudY - baseRadius * 0.15f) to baseRadius * 0.5f,
+                    Offset(
+                        cloudX - baseRadius * 0.4f,
+                        cloudY - baseRadius * 0.15f
+                    ) to baseRadius * 0.5f,
                     Offset(cloudX + baseRadius * 0.5f, cloudY) to baseRadius * 0.55f
                 ).forEach { (center, radius) ->
                     drawCircle(
@@ -540,22 +734,20 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
         val groundYAtCenter = canvasHeight * 0.81f
         val layerHeight = treeHeight / (numLayers + 1f)
         val layerOverlap = layerHeight * 0.35f
-        
+
         // Calculate trunk dimensions first
         val trunkHeightAboveGround = layerHeight * 1.75f // Updated to match new trunk height
-        
+
         // Position tree so bottom foliage layer sits just at/above the trunk top
-        val treeTop = groundYAtCenter - trunkHeightAboveGround - ((numLayers - 1) * (layerHeight - layerOverlap) + layerHeight)
+        val treeTop =
+            groundYAtCenter - trunkHeightAboveGround - ((numLayers - 1) * (layerHeight - layerOverlap) + layerHeight)
         val lastLayerTop = treeTop + (numLayers - 1) * (layerHeight - layerOverlap)
         val lastLayerBottom = lastLayerTop + layerHeight
 
-        val deepGreen = Color(0xFF2E7D32)
-        val midGreen = Color(0xFF2F7E33)
-        val foliageBrush = Brush.verticalGradient(
-            colors = listOf(deepGreen, midGreen),
-            startY = treeTop,
-            endY = treeTop + treeHeight
-        )
+        // Day 23: Enhanced gradient colors for volume and lighting
+        val darkGreen = Color(0xFF1B5E20)  // Dark forest green (inner/shadow)
+        val mediumGreen = Color(0xFF2E7D32) // Medium green
+        val brightGreen = Color(0xFFBFECC0) // Bright green (outer/lit)
 
         // --- 5. Star Topper (animated) ---
         val centerX = canvasWidth / 2f
@@ -584,9 +776,9 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
                     val isOuter = k % 2 == 0
                     val radius = if (isOuter) outerRadius else innerRadius
                     val angleDeg = tipAngle + k * 36f
-                    val angleRad = Math.toRadians(angleDeg.toDouble())
-                    val x = starCenter.x + (radius * Math.cos(angleRad)).toFloat()
-                    val y = starCenter.y + (radius * Math.sin(angleRad)).toFloat()
+                    val angleRad = angleDeg * PI.toFloat() / 180f
+                    val x = starCenter.x + radius * kotlin.math.cos(angleRad)
+                    val y = starCenter.y + radius * sin(angleRad)
                     points.add(Offset(x, y))
                 }
                 moveTo(points[0].x, points[0].y)
@@ -640,7 +832,7 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
 
                 // Draw the star with the gradient
                 drawPath(path = starPath, brush = starGradient)
-                
+
                 // Add a bright inner highlight that pulses
                 drawPath(
                     path = starPath,
@@ -682,28 +874,26 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
                 lineTo(centerX - trunkWidthBottom / 2f, trunkBottom)
                 close()
             }
-            
+
             // Main trunk color with gradient
             drawPath(
                 path = trunkPath,
-                brush = Brush.verticalGradient(
-                    colors = listOf(
-                        Color(0xFF6D4C41),
-                        Color(0xFF5D4037),
-                        Color(0xFF4E342E)
-                    ),
-                    startY = trunkTop,
-                    endY = trunkBottom
+                brush = Brush.linearGradient(
+                    0.0f to Color(0xFF6D4C41),
+                    0.5f to Color(0xFF5D4037),
+                    1.0f to Color(0xFF4E342E),
+                    start = Offset(centerX, trunkTop),
+                    end = Offset(centerX, trunkBottom)
                 )
             )
-            
+
             // Wood grain texture lines
             val grainColor = Color(0xFF3E2723)
             for (i in 0..3) {
                 val t = (i + 1) / 5f
                 val y = trunkTop + (trunkBottom - trunkTop) * t
                 val widthAtY = trunkWidthTop + (trunkWidthBottom - trunkWidthTop) * t
-                
+
                 // Curved grain lines
                 val grainPath = Path().apply {
                     val leftX = centerX - widthAtY * 0.35f
@@ -721,20 +911,27 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
                     style = Stroke(width = trunkWidthTop * 0.03f, cap = StrokeCap.Round)
                 )
             }
-            
+
             // Add some knots/details
             drawCircle(
                 color = grainColor.copy(alpha = 0.4f),
                 radius = trunkWidthTop * 0.08f,
-                center = Offset(centerX - trunkWidthTop * 0.2f, trunkTop + (trunkBottom - trunkTop) * 0.4f)
+                center = Offset(
+                    centerX - trunkWidthTop * 0.2f,
+                    trunkTop + (trunkBottom - trunkTop) * 0.4f
+                )
             )
-            
+
             // Blending effect at trunk base
             val blendRadius = trunkWidthBottom * 0.6f
             val blendCenter = Offset(centerX, trunkBottom - blendRadius * 0.2f)
             drawCircle(
                 brush = Brush.radialGradient(
-                    colors = listOf(Color.White.copy(alpha = 0.55f), Color(0xFFE0F7FA).copy(alpha = 0.35f), Color(0xFF5D4037).copy(alpha = 0.0f)),
+                    colors = listOf(
+                        Color.White.copy(alpha = 0.55f),
+                        Color(0xFFE0F7FA).copy(alpha = 0.35f),
+                        Color(0xFF5D4037).copy(alpha = 0.0f)
+                    ),
                     center = blendCenter,
                     radius = blendRadius
                 ),
@@ -850,8 +1047,19 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
                 close()
             }
 
-            // Draw main layer with gradient
-            drawPath(path = path, brush = foliageBrush)
+            // Draw main layer with linear gradient (dark center to bright edges)
+            val layerCenterY = (layerTop + layerBottom) / 2f
+            val layerRadius = kotlin.math.max(layerWidth / 2f, layerHeight)
+            drawPath(
+                path = path,
+                brush = Brush.linearGradient(
+                    Pair(0.0f, darkGreen),
+                    Pair(0.5f, mediumGreen),
+                    Pair(1.0f, brightGreen),
+                    start = Offset(centerX - layerRadius, layerCenterY),
+                    end = Offset(centerX + layerRadius, layerCenterY)
+                )
+            )
 
             // Add darker shadow at bottom of layer
             val shadowPath = Path().apply {
@@ -889,7 +1097,7 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
                 }
                 drawPath(
                     path = highlightPath,
-                    color = Color(0xFF4CAF50).copy(alpha = 0.25f),
+                    color = Color(0xFF4CAF50),
                     style = Stroke(width = layerHeight * 0.04f, cap = StrokeCap.Round)
                 )
             }
@@ -1018,27 +1226,28 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
                     )
                     return@forEach
                 }
-                
+
                 // Twinkle factor: 0.0..1.0 based on shared time and per-light phase
                 // Use faster, more varied twinkling patterns
                 val twinkleSpeed = 1.5f + light.phase * 0.8f
                 val sparkle =
                     ((sin(2.0 * PI * (twinkleTime.value * twinkleSpeed + light.phase)) + 1.0) * 0.5).toFloat()
-                
+
                 // Some lights blink on/off more dramatically
                 val blinkThreshold = 0.15f + light.phase * 0.15f
                 val isLightOn = sparkle > blinkThreshold
                 val onFactor = if (isLightOn) 1f else 0.1f
-                
+
                 // Enhanced sparkle intensity
                 val intensityFactor = (0.3f + 0.7f * sparkle) * onFactor
-                
+
                 // Determine color based on light mode
                 val animatedColor = when (lightMode) {
                     1 -> {
                         // Mode 1: Original colors only (no cycling)
                         light.color
                     }
+
                     else -> {
                         // Mode 0: Rainbow color cycling (original behavior)
                         val colorShift = (twinkleTime.value * 0.3f + light.phase) % 1f
@@ -1051,6 +1260,7 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
                                     (colorShift / 0.17f)
                                 )
                             }
+
                             colorShift < 0.34f -> {
                                 // Transition from red to amber
                                 androidx.compose.ui.graphics.lerp(
@@ -1059,6 +1269,7 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
                                     ((colorShift - 0.17f) / 0.17f)
                                 )
                             }
+
                             colorShift < 0.50f -> {
                                 // Transition from amber to green
                                 androidx.compose.ui.graphics.lerp(
@@ -1067,6 +1278,7 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
                                     ((colorShift - 0.34f) / 0.16f)
                                 )
                             }
+
                             colorShift < 0.67f -> {
                                 // Transition from green to cyan
                                 androidx.compose.ui.graphics.lerp(
@@ -1075,6 +1287,7 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
                                     ((colorShift - 0.50f) / 0.17f)
                                 )
                             }
+
                             colorShift < 0.84f -> {
                                 // Transition from cyan to violet
                                 androidx.compose.ui.graphics.lerp(
@@ -1083,6 +1296,7 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
                                     ((colorShift - 0.67f) / 0.17f)
                                 )
                             }
+
                             else -> {
                                 // Transition from violet back to original
                                 androidx.compose.ui.graphics.lerp(
@@ -1094,38 +1308,38 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
                         }
                     }
                 }
-                
+
                 // Dynamic glow radius based on sparkle
                 val glowRadius = light.radius * (1.8f + 1.2f * sparkle)
-                
+
                 // Outer glow (largest, softest)
                 drawCircle(
                     color = animatedColor.copy(alpha = 0.35f * intensityFactor),
                     radius = glowRadius,
                     center = light.position
                 )
-                
+
                 // Middle glow
                 drawCircle(
                     color = animatedColor.copy(alpha = 0.50f * intensityFactor),
                     radius = glowRadius * 0.65f,
                     center = light.position
                 )
-                
+
                 // Inner bright glow
                 drawCircle(
                     color = animatedColor.copy(alpha = 0.75f * intensityFactor),
                     radius = glowRadius * 0.40f,
                     center = light.position
                 )
-                
+
                 // Bulb core (solid when on, dim when off)
                 drawCircle(
                     color = animatedColor.copy(alpha = 0.95f * intensityFactor),
                     radius = light.radius,
                     center = light.position
                 )
-                
+
                 // Animated highlight spec (brighter when sparkling)
                 drawCircle(
                     color = Color.White.copy(alpha = (0.90f * sparkle) * onFactor),
@@ -1249,11 +1463,14 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
                 isAntiAlias = true
                 textAlign = android.graphics.Paint.Align.CENTER
                 setShadowLayer(8f, 0f, 4f, android.graphics.Color.argb(120, 0, 0, 0))
-                typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT_BOLD, android.graphics.Typeface.BOLD)
+                typeface = android.graphics.Typeface.create(
+                    android.graphics.Typeface.DEFAULT_BOLD,
+                    android.graphics.Typeface.BOLD
+                )
             }
             val x = size.width / 2f
             val y = size.height * 0.10f
-            
+
             // --- Draw Christmas hat BEFORE text so it appears visible ---
             val cIndex = greeting.indexOf('C')
             if (cIndex != -1) {
@@ -1268,7 +1485,7 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
                 val hatHeight = paint.textSize * 1.0f
                 val hatWidth = hatHeight * 0.95f
                 val hatBaseY = textTopY - hatHeight * 0.05f
-                
+
                 drawContext.canvas.nativeCanvas.apply {
                     // Draw curved, floppy hat body
                     val hatPath = Path().apply {
@@ -1290,7 +1507,7 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
                         )
                         close()
                     }
-                    
+
                     // Draw shadow
                     val shadowPaint = android.graphics.Paint().apply {
                         color = android.graphics.Color.rgb(180, 30, 30)
@@ -1305,7 +1522,7 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
                         setShadowLayer(8f, 2f, 3f, android.graphics.Color.argb(100, 0, 0, 0))
                     }
                     drawPath(hatPath.asAndroidPath(), hatPaint)
-                    
+
                     // Draw highlight on left side
                     val highlightPaint = android.graphics.Paint().apply {
                         color = android.graphics.Color.rgb(240, 80, 80)
@@ -1327,7 +1544,7 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
                         close()
                     }
                     drawPath(highlightPath.asAndroidPath(), highlightPaint)
-                    
+
                     // Draw white fur brim (thicker, fluffy)
                     val brimPaint = android.graphics.Paint().apply {
                         color = android.graphics.Color.WHITE
@@ -1343,7 +1560,7 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
                         hatBaseY + brimHeight / 2f
                     )
                     drawOval(brimRect, brimPaint)
-                    
+
                     // Draw white pom-pom at the tip
                     val pomRadius = hatHeight * 0.22f
                     drawCircle(
@@ -1354,7 +1571,7 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
                     )
                 }
             }
-            
+
             // Draw text AFTER hat so text appears in front
             drawContext.canvas.nativeCanvas.drawText(greeting, x, y, paint)
         }
@@ -1404,7 +1621,7 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
                 topLeft = Offset(gift1X, gift1Top),
                 size = Size(gift1Width, gift1Height)
             )
-            
+
             // 3D Box - Top face (perspective) - More visible
             val topDepth = gift1Width * 0.35f
             drawPath(
@@ -1425,7 +1642,7 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
                     end = Offset(gift1X + gift1Width, gift1Top - topDepth * 0.5f)
                 )
             )
-            
+
             // 3D Box - Right side face (darker)
             drawPath(
                 path = Path().apply {
@@ -1531,7 +1748,10 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
                     val ribbonY = gift1Top + gift1Height / 2f - ribbonWidth / 2f
                     moveTo(gift1X + gift1Width, ribbonY)
                     lineTo(gift1X + gift1Width + topDepth * 0.7f, ribbonY - topDepth * 0.5f)
-                    lineTo(gift1X + gift1Width + topDepth * 0.7f, ribbonY + ribbonWidth - topDepth * 0.5f)
+                    lineTo(
+                        gift1X + gift1Width + topDepth * 0.7f,
+                        ribbonY + ribbonWidth - topDepth * 0.5f
+                    )
                     lineTo(gift1X + gift1Width, ribbonY + ribbonWidth)
                     close()
                 },
@@ -1651,7 +1871,7 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
                 topLeft = Offset(gift2X, gift2Top),
                 size = Size(gift2Width, gift2Height)
             )
-            
+
             // 3D Box - Top face (perspective) - More visible
             val topDepth2 = gift2Width * 0.35f
             drawPath(
@@ -1672,7 +1892,7 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
                     end = Offset(gift2X + gift2Width, gift2Top - topDepth2 * 0.5f)
                 )
             )
-            
+
             // 3D Box - Right side face (darker)
             drawPath(
                 path = Path().apply {
@@ -1724,7 +1944,10 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
                     val ribbonX = gift2X + gift2Width / 2f - ribbonWidth2 / 2f
                     moveTo(ribbonX + ribbonWidth2, gift2Top)
                     lineTo(ribbonX + ribbonWidth2 + topDepth2 * 0.6f, gift2Top - topDepth2 * 0.4f)
-                    lineTo(ribbonX + ribbonWidth2 + topDepth2 * 0.6f, gift2Bottom - topDepth2 * 0.4f)
+                    lineTo(
+                        ribbonX + ribbonWidth2 + topDepth2 * 0.6f,
+                        gift2Bottom - topDepth2 * 0.4f
+                    )
                     lineTo(ribbonX + ribbonWidth2, gift2Bottom)
                     close()
                 },
@@ -1754,7 +1977,10 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
                     val ribbonY = gift2Top + gift2Height / 2f - ribbonWidth2 / 2f
                     moveTo(gift2X + gift2Width, ribbonY)
                     lineTo(gift2X + gift2Width + topDepth2 * 0.6f, ribbonY - topDepth2 * 0.4f)
-                    lineTo(gift2X + gift2Width + topDepth2 * 0.6f, ribbonY + ribbonWidth2 - topDepth2 * 0.4f)
+                    lineTo(
+                        gift2X + gift2Width + topDepth2 * 0.6f,
+                        ribbonY + ribbonWidth2 - topDepth2 * 0.4f
+                    )
                     lineTo(gift2X + gift2Width, ribbonY + ribbonWidth2)
                     close()
                 },
@@ -1854,7 +2080,7 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
                 topLeft = Offset(gift3X, gift3Top),
                 size = Size(gift3Width, gift3Height)
             )
-            
+
             // 3D Box - Top face (perspective) - More visible
             val topDepth3 = gift3Width * 0.35f
             drawPath(
@@ -1875,7 +2101,7 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
                     end = Offset(gift3X + gift3Width, gift3Top - topDepth3 * 0.5f)
                 )
             )
-            
+
             // 3D Box - Right side face (darker)
             drawPath(
                 path = Path().apply {
@@ -1927,7 +2153,10 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
                     val ribbonX = gift3X + gift3Width / 2f - ribbonWidth3 / 2f
                     moveTo(ribbonX + ribbonWidth3, gift3Top)
                     lineTo(ribbonX + ribbonWidth3 + topDepth3 * 0.6f, gift3Top - topDepth3 * 0.4f)
-                    lineTo(ribbonX + ribbonWidth3 + topDepth3 * 0.6f, gift3Bottom - topDepth3 * 0.4f)
+                    lineTo(
+                        ribbonX + ribbonWidth3 + topDepth3 * 0.6f,
+                        gift3Bottom - topDepth3 * 0.4f
+                    )
                     lineTo(ribbonX + ribbonWidth3, gift3Bottom)
                     close()
                 },
@@ -1957,7 +2186,10 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
                     val ribbonY = gift3Top + gift3Height / 2f - ribbonWidth3 / 2f
                     moveTo(gift3X + gift3Width, ribbonY)
                     lineTo(gift3X + gift3Width + topDepth3 * 0.6f, ribbonY - topDepth3 * 0.4f)
-                    lineTo(gift3X + gift3Width + topDepth3 * 0.6f, ribbonY + ribbonWidth3 - topDepth3 * 0.4f)
+                    lineTo(
+                        gift3X + gift3Width + topDepth3 * 0.6f,
+                        ribbonY + ribbonWidth3 - topDepth3 * 0.4f
+                    )
                     lineTo(gift3X + gift3Width, ribbonY + ribbonWidth3)
                     close()
                 },
@@ -2029,6 +2261,34 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
             )
         }
 
+        // --- Day 24: Snowman (The Grand Reveal - Final Touch!) ---
+        run {
+            // Make snowman much bigger - almost 3x the original size
+            val snowmanSize = treeWidth * 0.50f  // Was 0.18f, now much bigger
+            // Position on the right side of the scene
+            val snowmanX = centerX + treeWidth * 0.70f
+
+            // Calculate ground position using same bezier curve as gifts
+            val t = (snowmanX / canvasWidth).coerceIn(0f, 1f)
+            val P0 = Offset(0f, canvasHeight*13f)
+            val P1 = Offset(canvasWidth * 0.3f, canvasHeight)
+            val P2 = Offset(canvasWidth * 0.7f, canvasHeight * 0.70f)
+            val P3 = Offset(canvasWidth, canvasHeight * 0.85f)
+            val snowmanGroundY = (1 - t).pow(3) * P0.y +
+                    3 * (1 - t).pow(2) * t * P1.y +
+                    3 * (1 - t) * t * t * P2.y +
+                    t.pow(3) * P3.y
+
+            // Calculate center Y so bottom of snowman sits on ground
+            // Bottom snowball radius is size * 0.5f, so offset by that amount
+            val snowmanY = snowmanGroundY - snowmanSize * 1.7f  // Bottom sits on ground
+
+            drawSnowman(
+                center = Offset(snowmanX, snowmanY),
+                size = snowmanSize
+            )
+        }
+
         // --- 10. Snowfall (Day 16: Animated falling snowflakes) ---
         run {
             val baseSize = canvasWidth * 0.025f
@@ -2056,11 +2316,11 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
                     Pair(0.85f, 0.22f),
                     Pair(0.55f, 0.30f)
                 )
-                
+
                 // Assign each snowflake to a cloud
                 val cloudIndex = i % cloudPositions.size
                 val (cloudXRatio, cloudYRatio) = cloudPositions[cloudIndex]
-                
+
                 // Cloud drift animation (matching cloud movement)
                 val cloudSpeed = when (cloudIndex) {
                     0 -> 0.3f
@@ -2078,14 +2338,15 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
                     4 -> 0.4f
                     else -> 0.2f
                 }
-                
-                val driftOffset = ((skyTime.value * cloudSpeed + cloudOffset) % 1f) * canvasWidth * 0.15f
-                
+
+                val driftOffset =
+                    ((skyTime.value * cloudSpeed + cloudOffset) % 1f) * canvasWidth * 0.15f
+
                 // Base position - starts from cloud with some spread
                 val cloudCenterX = canvasWidth * cloudXRatio + driftOffset
                 val cloudCenterY = canvasHeight * cloudYRatio
                 val baseRadius = canvasWidth * 0.06f
-                
+
                 // Spread snowflakes around the cloud area
                 val spreadX = baseRadius * 2.5f * (xRandom - 0.5f)
                 val baseX = cloudCenterX + spreadX
@@ -2095,18 +2356,18 @@ fun ChristmasScene(modifier: Modifier = Modifier, skyTheme: SkyTheme = SkyTheme.
                 val fallSpeed = 0.3f + 0.7f * sizeRandom
                 // Use skyTime for continuous falling motion
                 val fallProgress = (skyTime.value + yRandom) % 1f
-                
+
                 // Vertical position - starts from cloud bottom and falls to ground
                 val startY = cloudCenterY + baseRadius * 0.5f
                 val endY = canvasHeight * 0.85f
                 val animatedY = startY + (endY - startY) * fallProgress
-                
+
                 // Horizontal drift - gentle side-to-side motion as it falls
                 val driftAmount = canvasWidth * 0.06f * (xRandom - 0.5f)
                 val driftPhase = (twinkleTime.value * (0.4f + 0.3f * xRandom) + i * 0.1f) % 1f
                 val drift = driftAmount * sin(2.0 * PI * driftPhase).toFloat()
                 val animatedX = baseX + drift
-                
+
                 // Gentle rotation as it falls
                 val rotationSpeed = 30f * (xRandom - 0.5f) // -15 to +15 degrees per cycle
                 val animatedRotation = rotRandom + rotationSpeed * twinkleTime.value
